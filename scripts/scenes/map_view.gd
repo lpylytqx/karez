@@ -378,20 +378,35 @@ func _scatter_ground() -> void:
 	# 同一个种子、同一条调用顺序，重摆的结果就完全一致。
 	_rng.seed = 20261005
 
-	const DESERT := [
+	var desert_pool := [
 		"res://tiles/props/rock_small_01.png",
 		"res://tiles/props/rock_pile_01.png",
 		"res://tiles/terrain/sand_ripple_01.png",
 		"res://tiles/terrain/gravel_01.png",
 		"res://tiles/terrain/dirt_patch_01.png",
 	]
-	const OASIS := [
+	var oasis_pool := [
 		"res://tiles/props/herb_green_01.png",
 		"res://tiles/props/bush_berry_01.png",
 		"res://tiles/terrain/grass_flower_01.png",
 		"res://tiles/terrain/grass_pebble_01.png",
 		"res://tiles/props/mushroom_01.png",
 	]
+	# 四季：雪地里不该有花草蘑菇（一眼就假），只剩石头与砾石；
+	# 春天把草换成一丛丛花。
+	match _season():
+		"winter":
+			oasis_pool = [
+				"res://tiles/props/rock_small_01.png",
+				"res://tiles/terrain/gravel_01.png",
+			]
+		"spring":
+			oasis_pool = [
+				"res://tiles/terrain/grass_flower_01.png",
+				"res://tiles/terrain/grass_flower_01.png",
+				"res://tiles/props/herb_green_01.png",
+				"res://tiles/terrain/grass_pebble_01.png",
+			]
 
 	var r := oasis_radius()
 	# 与 _build_terrain 用同一个绿洲中心，否则「哪算绿洲」两处会对不上
@@ -423,7 +438,7 @@ func _scatter_ground() -> void:
 			var in_oasis := cell.distance_to(c) < r
 			if _rng.randf() > (0.16 if in_oasis else 0.055):
 				continue
-			var pool: Array = OASIS if in_oasis else DESERT
+			var pool: Array = oasis_pool if in_oasis else desert_pool
 			var tex: String = str(pool[_rng.randi() % pool.size()])
 			# 略错开格点，否则会看出整齐的行列
 			_add_ground(tex, gx + _rng.randf_range(-0.3, 0.3),
@@ -548,16 +563,40 @@ func _place_props() -> void:
 			"res://tiles/terrain/tree_autumn_02.png",
 			"res://tiles/nature/tree_poplar_01.png",      # 白杨秋天也发黄，可留
 		]
-	# 冬天：树只剩枯枝 —— 素材里没有枯树，所以冬天不摆大树，
-	# 让小树池只留最小的两棵。空一些正是冬天的样子。
+	# 冬天：不摆大树，也不要小绿树。
+	# 原本留了 tree_small_01 想「好歹有点植被」，但它是**圆形的绿树**，
+	# 铺在雪地上跟绿灌木一样扎眼（截图确认）。沙漠的冬天本来就该是空的。
 	elif _season() == "winter":
 		big_trees = []
-		small_trees = ["res://tiles/nature/tree_small_01.png"]
+		small_trees = []
 	var shrubs := [
 		"res://tiles/nature/bush_01.png",
 		"res://tiles/nature/flower_01.png",
 		"res://tiles/nature/grass_tuft_01.png",
 	]
+	# ── 四季特色之二：灌木与花也换 ──
+	# 上一版只换了树和地表，结果**冬天的雪地里照样冒出绿灌木和花** ——
+	# 一眼就假。花草是最容易被看穿的那一层，所以单独处理。
+	# 春天反过来把花加浓：「春天来了」最直接的信号就是花多了。
+	var shrub_chance := 1.0
+	match _season():
+		"winter":
+			shrubs = []                                          # 雪地里什么都不长
+			shrub_chance = 0.0
+		"spring":
+			shrubs = [
+				"res://tiles/nature/flower_01.png",
+				"res://tiles/nature/flower_01.png",
+				"res://tiles/nature/flower_01.png",             # 花占多数
+				"res://tiles/nature/bush_01.png",
+			]
+			shrub_chance = 1.35
+		"autumn":
+			shrubs = [
+				"res://tiles/nature/bush_01.png",
+				"res://tiles/nature/grass_tuft_01.png",
+			]
+			shrub_chance = 0.8
 
 	var r := oasis_radius()
 	var cx := COLS / 2.0
@@ -596,11 +635,14 @@ func _place_props() -> void:
 			_add_tree(str(big_trees[_rng.randi() % big_trees.size()]), ax, ay)
 		placed += 1
 
-	# 灌木花草单独撒一层，用很小的间距，专门填补树之间的空隙
-	for i in range(int(r * 2.4)):
+	# 灌木花草单独撒一层，用很小的间距，专门填补树之间的空隙。
+	# shrub_chance 按季节调（冬天少、春天多），量要取整所以加 int()。
+	for i in range(int(r * 2.4 * shrub_chance)):
 		var ax := _rng.randf_range(cx - r * 0.92, cx + r * 0.92)
 		var ay := _rng.randf_range(cy - r * 0.92, cy + r * 0.92)
 		if _is_reserved(ax, ay):
+			continue
+		if shrubs.is_empty():
 			continue
 		_add_ground(str(shrubs[_rng.randi() % shrubs.size()]), ax, ay)
 
