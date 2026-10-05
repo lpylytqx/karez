@@ -29,6 +29,19 @@ const PHASE_LIGHT := {
 	"evening":   Color(1.00, 0.83, 0.68),   # 暮：暖橙，斜阳
 	"night":     Color(0.56, 0.61, 0.88),   # 夜：冷蓝，压暗但不压死
 }
+
+## 四季的色调。与 PHASE_LIGHT **逐通道相乘**，所以两层叠在一起用。
+## 数字都很克制 —— 像素画压太狠会糊成一团；这里的目标是
+## 「一眼看出换季了」，不是写实光照。
+##
+## 注意：现在只是**调色**，还没有雪。冬天想要真正下雪得另做雪地贴图，
+## 那是一件独立的事（见 docs 的美化清单）。
+const SEASON_TINT := {
+	"spring": Color(1.00, 1.00, 1.00),   # 春：不加色，让新绿自己说话
+	"summer": Color(1.07, 1.02, 0.89),   # 夏：亮而偏暖，日头毒
+	"autumn": Color(1.10, 0.94, 0.74),   # 秋：金黄，收获色
+	"winter": Color(0.84, 0.89, 1.04),   # 冬：偏冷偏灰蓝，肃杀
+}
 var _player: CharacterBody2D
 var _hud: Control
 
@@ -128,7 +141,11 @@ func _apply_phase_light() -> void:
 	if _daylight == null or _game == null:
 		return
 	var ph := str(_game.query("calendar.phase"))
-	var target: Color = PHASE_LIGHT.get(ph, Color.WHITE)
+	var se := str(_game.query("calendar.season"))
+	var c: Color = PHASE_LIGHT.get(ph, Color.WHITE)
+	var s: Color = SEASON_TINT.get(se, Color.WHITE)
+	# 时段 × 季节，逐通道相乘 —— 于是「冬夜」自然比「夏夜」更冷更暗
+	var target := Color(c.r * s.r, c.g * s.g, c.b * s.b, 1.0)
 	# 用补间而不是直接赋值：时段切换是「天慢慢暗下来」，不是啪一下关灯。
 	var tw := create_tween()
 	tw.tween_property(_daylight, "color", target, 0.6)
