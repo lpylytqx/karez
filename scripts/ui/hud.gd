@@ -61,6 +61,8 @@ var _build_menu: Panel
 var _job_panel: Panel
 var _job_rows: Dictionary = {}
 var _job_free: Label
+## 上一条日志文本，用于抑制连续重复（连点失败按钮时不刷屏）
+var _last_log := ""
 
 
 func _ready() -> void:
@@ -219,11 +221,22 @@ func _build_job_panel() -> void:
 
 
 func _on_job_pressed() -> void:
+	_toggle_job_panel()
+
+
+func _toggle_job_panel() -> void:
 	if _job_panel == null:
 		return
 	_job_panel.visible = not _job_panel.visible
 	if _job_panel.visible:
 		_refresh_jobs()
+
+
+## 供场景在开局时自动弹出 —— 用户实机反馈「不知道怎么派人」，
+## 说明这个面板藏得太深：按钮在那儿，但没有任何东西提示必须点它。
+func open_job_panel() -> void:
+	if _job_panel != null and not _job_panel.visible:
+		_toggle_job_panel()
 
 
 func _on_job_delta(jid: String, delta: int) -> void:
@@ -441,6 +454,11 @@ func setup(game: Node, events: Node) -> void:
 func append_log(text: String) -> void:
 	if _log == null:
 		return
+	# 连续重复的同一条提示只记一次。玩家连点「挖竖井」而材料不够时，
+	# 会把同一句「缺 土差12」刷满整个日志框（实机截图里就是这样）。
+	if text == _last_log:
+		return
+	_last_log = text
 	_log.append_text(text + "\n")
 
 
@@ -476,9 +494,15 @@ func refresh() -> void:
 	var building := str(_game.state["construction"].get("display", ""))
 	if building == "":
 		building = "空闲"
-	_top.text = "第%d天 %s·%s   AP %d   坎儿井 %d/6   建设:%s" % [
-		int(_game.query("day")), season, phase, int(_game.action_points()),
-		sections, building,
+	# 顶栏第一行加上「分工概览」：不让玩家必须打开面板才知道谁在干什么。
+	# 之前只有「坎儿井 2/6　建设:空闲」，玩家根本看不出耕作的只有 1 个人。
+	var js := ""
+	for jid in ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]:
+		var n: int = _game.job_count(jid)
+		if n > 0:
+			js += "%s%d " % [_job_cn(jid), n]
+	_top.text = "第%d天 %s·%s  坎儿井 %d/6   %s  %s" % [
+		int(_game.query("day")), season, phase, sections, building, js.strip_edges(),
 	]
 
 	var w := float(_game.query("resources.water.current"))
@@ -490,15 +514,24 @@ func refresh() -> void:
 
 	# ⚠ Label 不解析 BBCode —— 早先这里拼了 [color=...]，实机截图里
 	# 那串标记被原样显示了出来。改成纯文本 + modulate 表示告警色。
+	#
+	# 告警优先级：饿死 > 渴死。「粮只够 N 天」比「缺水」更紧急，
+	# 而且要把「点什么」一起说出来 —— 只说缺什么，玩家不知道怎么办。
 	var shortage := flow < float(int(_game.query("population"))) * 3.0
+	var food_days: float = _game.food_days_left()
+	var warn := ""
+	if food_days < 2.0:
+		warn = "   【粮只够 %.0f 天 — 点「分工」加耕作】" % food_days
+	elif shortage:
+		warn = "   ← 缺水，入不敷出"
 	_res.text = "水 %.0f/%.0f (入%.0f)  粮 %.0f  银 %.0f  人 %d  木 %.0f 土 %.0f 具 %.0f  士气 %.0f%s" % [
 		w, wc, flow, food, float(_game.query("resources.silver")),
 		int(_game.query("population")),
 		float(m.get("wood", 0)), float(m.get("earth", 0)),
 		float(m.get("tools", 0)), float(_game.query("stats.morale")),
-		"   ← 缺水，入不敷出" if shortage else "",
+		warn,
 	]
-	_res.modulate = Color(1.0, 0.68, 0.6) if shortage else Color(1, 1, 1)
+	_res.modulate = Color(1.0, 0.68, 0.6) if (shortage or food_days < 2.0) else Color(1, 1, 1)
 
 	# 右栏底部：显示「昨天产出了什么」+ 田块进度。
 	# 这是玩家判断分工是否合理的唯一依据 —— 没有它，岗位分配就是盲猜。
@@ -537,7 +570,23 @@ func _refresh_dig() -> void:
 		# 直接写清为什么不能点，玩家一眼就懂
 		var c: Dictionary = _game.state["construction"]
 		_dig_btn.text = "施工中…" if str(c.get("kind", "")) != "" else "材料不足"
-		_dig_hint.text = str(info["reason"])
+		# 把「缺什么」翻译成「该点哪个岗位」——
+		# 只显示「缺 土差12」的话，玩家不知道去哪补（用户实机反馈过这一点）
+		var r := str(info["reason"])
+		if r.begins_with("缺 "):
+			var tips: Array = []
+			if r.contains("土"):
+				tips.append("取土")
+			if r.contains("木"):
+				tips.append("采木")
+			if r.contains("工具"):
+				tips.append("做工")
+			if tips.is_empty():
+				_dig_hint.text = r
+			else:
+				_dig_hint.text = "%s\n点「分工」派人%s" % [r, "/".join(tips)]
+		else:
+			_dig_hint.text = r
 		_dig_hint.modulate = Color(1.0, 0.62, 0.5)
 
 

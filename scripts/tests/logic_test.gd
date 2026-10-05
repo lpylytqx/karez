@@ -107,6 +107,12 @@ func _test_dig_flow() -> void:
 	_section("挖井流程")
 	_eq(_game.oasis_level(), 0, "初始绿洲等级 0")
 
+	# 工期速度取决于治水人数：基准 3 人 = 每天推进 1 天，才与 numbers.json 的 days 对得上。
+	# 默认分配是 2 人治水（为了留出耕作的人手），这里显式补到 3 人做确定性验证。
+	_game.assign_job("farm", -1)
+	_game.assign_job("water", 1)
+	_eq(_game.job_count("water"), 3, "治水补到 3 人（基准速度）")
+
 	var info: Dictionary = _game.dig_info()
 	_ok(bool(info["ok"]), "开局可挖第一段（木30≥12 土50≥25 工具4≥0）")
 	_eq(int(info["index"]), 1, "目标段 = 1")
@@ -348,7 +354,7 @@ func _test_s3_loop() -> void:
 	var g: Node = load("res://core/game_state.gd").new()
 	add_child(g)
 
-	_eq(g.job_count("water"), 3, "开局 3 人治水")
+	_eq(g.job_count("water"), 2, "开局 2 人治水（留 2 人耕作，否则养不活 6 口人）")
 	_eq(g.total_assigned(), 6, "6 人全部分配")
 	_eq(g.unassigned(), 0, "没有闲置人口")
 	_eq(g.assign_job("gather_wood", 1), false, "人手全占满时不能再加岗位")

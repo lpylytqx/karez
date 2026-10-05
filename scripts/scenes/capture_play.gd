@@ -55,6 +55,18 @@ func _process(_delta: float) -> void:
 				_frames = 0
 		5:
 			if _frames >= 20:
+				# 再截一张「分工面板打开」的，验证 S3 的核心界面能正常渲染
+				_play.get_node("HUDLayer/HUD").open_job_panel()
+				_stage = 6
+				_frames = 0
+		6:
+			if _frames >= 20:
+				_dump_ui()
+				_shot("shot_D_分工面板.png")
+				_stage = 7
+				_frames = 0
+		7:
+			if _frames >= 15:
 				print("CAPTURE done")
 				get_tree().quit()
 

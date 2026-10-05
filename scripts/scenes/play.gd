@@ -64,6 +64,11 @@ func _ready() -> void:
 	_hud.append_log("[b]《坎儿井》[/b] 水只够 7 天、粮只够 4 天 —— 挖通竖井才能活。")
 	_hud.append_log("[color=#8fd3ff]①[/color]点「挖竖井」　[color=#8fd3ff]②[/color]点「分工」派人采木取土")
 	_hud.append_log("[color=#8fd3ff]③[/color]「推进时段」×4 = 过一天。每天看右栏「昨产」调分工。")
+
+	# 开局直接把分工面板摆出来。用户实机反馈「不知道该怎么派人」——
+	# 按钮在那儿但没有任何提示要求点它，等于没有这个功能。
+	_hud.open_job_panel()
+
 	_probe_ai()
 
 

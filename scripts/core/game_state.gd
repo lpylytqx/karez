@@ -113,9 +113,11 @@ func _initial_state() -> Dictionary:
 		},
 		"population": 6,
 		# 岗位分配（S3 经营骨架）。每个居民每天占一个岗位，见 numbers.json 的
-		# population.jobs.list。初始：3 人治水、1 采木、1 取土、1 耕作。
-		"jobs": {"water": 3, "gather_wood": 1, "gather_earth": 1, "craft": 0,
-			"farm": 1, "guard": 0, "idle": 0},
+		# population.jobs.list。
+		# 默认给 2 人耕作 —— 1 个农夫只能养活 2 个人，配上 6 人口就是必死的开局。
+		# 初始分配不该是个陷阱：玩家可以自己调，但起点必须是能活的。
+		"jobs": {"water": 2, "gather_wood": 1, "gather_earth": 1, "craft": 0,
+			"farm": 2, "guard": 0, "idle": 0},
 		"stats": {"prosperity": 5.0, "reputation": 10.0, "morale": 55.0, "security": 40.0},
 		# 建筑：id -> {level, condition}。condition 从 100 递减，低于 30 功能打折。
 		"buildings": {},
