@@ -74,7 +74,8 @@ func _process(_delta: float) -> void:
 				_stage = 8
 				_frames = 0
 		8:
-			if _frames >= 20:
+			# 等得久一点，让居民真的走到各自的岗位 —— 不然截到的都是半路
+			if _frames >= 420:
 				_shot("shot_E_面板全隐.png")
 				_stage = 9
 				_frames = 0

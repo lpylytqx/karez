@@ -15,6 +15,7 @@ const EVENT_CHANCE := 0.65
 var _game: Node
 var _events: Node
 var _map: Node2D
+var _villagers: Node2D
 var _player: CharacterBody2D
 var _hud: Control
 
@@ -38,6 +39,7 @@ func _ready() -> void:
 	_game = $GameState
 	_events = $EventSystem
 	_map = $MapView
+	_villagers = $Villagers
 	_player = $Player
 	_hud = $HUDLayer/HUD
 
@@ -46,6 +48,8 @@ func _ready() -> void:
 
 	_events.setup(_game)
 	_map.setup(_game)
+	# 居民要在状态层之后初始化：它靠 state_changed 信号跟随分工变化
+	_villagers.setup(_game, _map)
 	_hud.setup(_game, _events)
 
 	_hud.dig_requested.connect(_on_dig)
