@@ -189,6 +189,7 @@ func refresh() -> void:
 	_shaft_nodes.clear()
 	_build_terrain()
 	_place_props()
+	_scatter_ground()
 	_build_shafts()
 
 
@@ -300,6 +301,74 @@ func _is_reserved(ax: float, ay: float) -> bool:
 		if Vector2(ax - g.x, ay - g.y).length() < 1.9:
 			return true
 	return false
+
+
+## 地表撒物：把大片空沙填上细节，让地图不再是一块平铺的沙。
+##
+## ⚠ 必须用固定种子的 RandomNumberGenerator，**不能用全局 randf()**。
+##    _place_props() 每次 refresh() 都跑，而 refresh 挂在 state_changed 上 ——
+##    也就是玩家每点一次按钮、每推进一个时段都会重摆一次。
+##    用全局随机的话，满地的石头会跟着玩家的每一次点击跳位置，
+##    实机上是灾难性的。固定种子后每次重摆的结果完全一致。
+##
+## 两条排除规则：
+##   1. 离任何地标太近的不撒（建筑边上堆石头会像废墟）
+##   2. 竖井链走廊不撒（井口本身就要清爽，才能一眼看清哪几口通了）
+func _scatter_ground() -> void:
+	# 复用类里已有的 _rng（种子 20261005，见 rebuild()），不要再 new 一个 ——
+	# 同一个种子、同一条调用顺序，重摆的结果就完全一致。
+	_rng.seed = 20261005
+
+	const DESERT := [
+		"res://tiles/props/rock_small_01.png",
+		"res://tiles/props/rock_pile_01.png",
+		"res://tiles/terrain/sand_ripple_01.png",
+		"res://tiles/terrain/gravel_01.png",
+		"res://tiles/terrain/dirt_patch_01.png",
+	]
+	const OASIS := [
+		"res://tiles/props/herb_green_01.png",
+		"res://tiles/props/bush_berry_01.png",
+		"res://tiles/terrain/grass_flower_01.png",
+		"res://tiles/terrain/grass_pebble_01.png",
+		"res://tiles/props/mushroom_01.png",
+	]
+
+	var r := oasis_radius()
+	# 与 _build_terrain 用同一个绿洲中心，否则「哪算绿洲」两处会对不上
+	var c := Vector2(COLS / 2.0, ROWS / 2.0 + 1.0)
+
+	var occupied: Array = []
+	for id in Sites.PLACES:
+		var p: Dictionary = Sites.PLACES[id]
+		if str(p.get("tex", "")) == "":
+			continue
+		occupied.append(Vector2(p["xy"]))
+
+	for gy in range(1, ROWS - 1):
+		for gx in range(1, COLS - 1):
+			var cell := Vector2(gx, gy)
+			var near := false
+			for o in occupied:
+				if cell.distance_to(o) < 3.4:
+					near = true
+					break
+			if not near:
+				for i in SHAFT_POS.size():
+					if cell.distance_to(SHAFT_POS[i]) < 2.2:
+						near = true
+						break
+			if near:
+				continue
+			# 绿洲里密一些，沙漠稀一些（沙地本来就该空）
+			var in_oasis := cell.distance_to(c) < r
+			if _rng.randf() > (0.16 if in_oasis else 0.055):
+				continue
+			var pool: Array = OASIS if in_oasis else DESERT
+			var tex: String = str(pool[_rng.randi() % pool.size()])
+			# 略错开格点，否则会看出整齐的行列
+			_add_ground(tex, gx + _rng.randf_range(-0.3, 0.3),
+				gy + _rng.randf_range(-0.3, 0.3))
 
 
 func _place_props() -> void:
