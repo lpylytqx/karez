@@ -142,16 +142,27 @@ func _apply_theme() -> void:
 	theme = th
 
 
-func _panel_style(bg: Color, border := Color(0.55, 0.42, 0.28)) -> StyleBoxFlat:
+## 面板样式。像素 UI 的经典做法：**金边 + 圆角 + 投影**。
+##
+## 改之前只有 1px 的暗棕边（0.55,0.42,0.28），在深棕底（0.13,0.10,0.07）上
+## 几乎没有对比 —— 所以面板看着就是几块平贴的深色方块，像调试工具而不是游戏界面。
+## 现在：
+##   · 边框提到 2px 且换成暖金，面板从地图上「抬」得起来
+##   · 圆角 3px，去掉生硬的直角
+##   · 加一层投影，让面板有厚度（否则像直接画在沙地上）
+func _panel_style(bg: Color, border := Color(0.74, 0.57, 0.32)) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
 	sb.border_color = border
-	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(0)
-	sb.content_margin_left = 3
-	sb.content_margin_right = 3
-	sb.content_margin_top = 1
-	sb.content_margin_bottom = 1
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(3)
+	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	sb.shadow_size = 3
+	sb.shadow_offset = Vector2(0, 2)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
 	return sb
 
 
