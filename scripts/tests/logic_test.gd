@@ -387,6 +387,13 @@ func _test_s3_loop() -> void:
 	_eq(int(g2.query("construction.days_left")), dl0, "无人治水时工期完全不推进（%d 天）" % dl0)
 
 	# ── 自动模拟：用「朴素分配」打 60 天，看能不能活下来并挖通几段 ──
+	#
+	# ⚠ 必须先固定随机种子。模拟里会掷人口增长（_roll_population 用 randf），
+	# 不固定的话每次跑出来的段数都不一样 —— 这个断言一度时过时不过，
+	# 变成一条「看运气」的测试。不稳定的测试比没有测试更糟：
+	# 它让人分不清「这轮改动搞坏了」和「这轮运气不好」。
+	seed(20261005)
+
 	var s: Node = load("res://core/game_state.gd").new()
 	add_child(s)
 	var dead_day := -1
