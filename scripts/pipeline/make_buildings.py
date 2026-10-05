@@ -35,12 +35,34 @@ T = 16  # 每格像素
 PLAN = [
     ("inn_01.png",             0,  0, 4, 4, "橙顶大屋（带门廊）"),      # 已确认
     ("warehouse_01.png",       4,  0, 4, 4, "黄褐色大屋（宽门洞）"),    # 已确认
-    ("stable_01.png",          0,  8, 3, 3, "土坯小屋（不缩放，避免压扁）"),
-    ("house_resident_01.png",  4,  8, 2, 2, "茅顶圆屋"),
-    ("grape_drying_01.png",   24, 14, 3, 4, "带廊大屋（当晾房用）"),
-    ("bazar_stall_blue.png",   0, 12, 2, 2, "白顶棚"),
-    ("watchtower_sand_01.png", 0, 14, 1, 3, "石柱"),
+    ("stable_01.png",          8,  0, 4, 4, "第三栋橙顶大屋（与驿馆不同款）"),
+    ("grape_drying_01.png",   12,  0, 4, 4, "红顶建筑"),
+    ("house_resident_01.png",  3,  8, 3, 3, "茅顶圆屋"),
+    ("bazar_stall_blue.png",  19,  5, 3, 3, "占位，稍后由红色摊位换色覆盖"),
+    ("watchtower_sand_01.png", 0,  8, 1, 3, "土坯墙段（当塔身）"),
 ]
+
+## 蓝色摊位不再从大图上找 —— 试了三组坐标都只能裁到穹顶中间的一坨棕色。
+## 直接由**已经确认正确的红色摊位换色**得到：两个摊位本来就该是一对，
+## 换色既保证可辨认，也保证风格一致。
+HUE_SWAP = ("bazar_stall_red.png", "bazar_stall_blue.png")
+
+
+def _hue_shift_to_blue(im: Image.Image) -> Image.Image:
+    """把偏红的像素整体转到蓝色。只动色相，明度与饱和度保持不变。"""
+    px = im.load()
+    w, h = im.size
+    out = im.copy()
+    op = out.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            # 只有明显偏红的像素参与换色（木架等中性色保持原样）
+            if r > g + 20 and r > b + 20:
+                op[x, y] = (b, g, r, a)   # 红蓝通道互换
+    return out
 
 
 def main() -> int:
@@ -59,7 +81,15 @@ def main() -> int:
             crop = crop.resize(old, Image.NEAREST)
         crop.save(dst)
         print(f"  {name:<24} 格({cx:>2},{cy:>2}) {cw}x{chh}  {what:<18} -> {crop.size}")
-    print(f"\n  重裁 {len(PLAN)} 张")
+    # 收尾：由红色摊位换色得到蓝色摊位
+    src_name, dst_name = HUE_SWAP
+    sp, dp = BUILD / src_name, BUILD / dst_name
+    if sp.exists():
+        _hue_shift_to_blue(Image.open(sp).convert("RGBA")).save(dp)
+        print(f"  {dst_name:<24} 由 {src_name} 换色          -> "
+              f"{Image.open(dp).size}")
+
+    print(f"\n  重裁 {len(PLAN)} 张 + 换色 1 张")
     return 0
 
 

@@ -15,6 +15,8 @@ signal talk_requested(cid: String)
 
 const TILE := 16.0
 const NEAR_DIST := 30.0
+## 顶栏常驻高度（见 hud.gd 的 _build_top）。名字牌不能跑进这个区间。
+const TOP_SAFE_Y := 82.0
 
 ## id -> 贴图。马匪头目没有专属行走图，借用商队掌柜的再调成暗红。
 const SKIN := {
@@ -124,7 +126,10 @@ func _make_person(cid: String) -> void:
 	# 实机截图里「商队掌柜」因此只显示出「掌柜」两个字。
 	lbl.custom_minimum_size = Vector2(66, 20)
 	lbl.size = Vector2(66, 20)
-	lbl.position = Vector2(cell.x - 33.0, cell.y + float(LABEL_DY.get(cid, -34.0)))
+	# ⚠ y 要夹在顶栏之下。顶栏是 0..78 且常驻，名字牌跑到它后面就被整个盖住 ——
+	# 马匪头目站在东北沙漠 (35,6)，名牌原本落在 y=62，实机截图里被顶栏切掉一半。
+	var ly: float = maxf(TOP_SAFE_Y, cell.y + float(LABEL_DY.get(cid, -34.0)))
+	lbl.position = Vector2(cell.x - 33.0, ly)
 
 	_folk.append({"id": cid, "sprite": sp, "label": lbl, "base": cell})
 
