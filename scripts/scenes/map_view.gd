@@ -47,11 +47,12 @@ const SHAFT_DX := -1
 const SHAFT_DY := -2
 const MAX_SHAFTS := 6
 
-## 农田块（格）—— 16x16，可以紧排
+## 农田块（格）—— 16x16，可以紧排。
+## 6x4 = 24 格，正好等于 agriculture.farmland.max_plots，画出来的和算出来的一致。
 const FIELD_X0 := 14
-const FIELD_Y0 := 11
-const FIELD_COLS := 5
-const FIELD_ROWS := 3
+const FIELD_Y0 := 10
+const FIELD_COLS := 6
+const FIELD_ROWS := 4
 
 var _game: Node = null
 
@@ -289,7 +290,10 @@ func _place_props() -> void:
 	for r in range(FIELD_ROWS):
 		for c in range(FIELD_COLS):
 			slots.append(Vector2i(FIELD_X0 + c, FIELD_Y0 + r))
-	var fields := clampi(lv * 2, 0, slots.size())
+	# 田块数与数值层用同一个来源 —— 否则画面上 12 块田、数值上按 24 块产粮，
+	# 玩家看到的和算出来的对不上（这是作图与数值脱节的典型，之前就出过）。
+	var fields := clampi(int(_game.farmland_plots()) if _game != null else 0,
+		0, slots.size())
 	# 每块地一种作物，按地块顺序推进生长阶段 —— 一眼能看出「这片地在长东西」。
 	# 只用番茄一条线会显得单调，所以掺了胡萝卜/茄子/玉米/卷心菜。
 	var crop_lines: Array = [
