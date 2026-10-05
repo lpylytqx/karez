@@ -15,9 +15,11 @@ const TILE := 16.0
 const FRAME_COLS := 4
 const SPEED := 30.0
 const FRAME_DUR := 0.16
-## 劳作动画：用的第几行、多久换一帧
-const WORK_ROW := 5
-const WORK_FRAME_DUR := 0.22
+## 劳作动画：换帧间隔（比走路的 0.16 慢一倍，读起来是「使劲」而非「原地走」），
+## 以及每一拍往下压多少像素（发力感）。
+## ⚠ 不要再用第 4~6 行 —— 实机确认那三行不像干活，见 _process 里的长注释。
+const WORK_FRAME_DUR := 0.34
+const WORK_DIP := 2.0
 ## 走到离目标多近就算到了
 const ARRIVE_DIST := 2.5
 
@@ -158,8 +160,22 @@ func _make_worker(index: int) -> Dictionary:
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sp.add_child(dot)
 
+	# 手里的工具。干活时才显示，跟着发力的节奏摆。
+	#
+	# 为什么加这个：先用了素材里闲置的第 4~6 行当劳作帧，用户实机看后说
+	# 「都不是很像」；改成「慢速循环 + 往下压」之后仍然只是个姿态。
+	# **16x16 的角色光靠身体动作，读不出「在干什么」——
+	#  手里有没有家伙才是最强的信号。** 工具贴图直接复用工作地标那套
+	#  SITE_ICON（本来就按岗位分好了：镐/斧/锹/锤/麦穗），不用新素材。
+	var tool := Sprite2D.new()
+	tool.texture = _get_tex(str(SITE_ICON.get("idle", SITE_ICON["water"])))
+	tool.centered = true
+	tool.visible = false
+	tool.z_index = 7          # 在居民（6）之上，才看得见是「拿在手里」
+	sp.add_child(tool)
+
 	add_child(sp)
-	return {"sprite": sp, "dot": dot, "job": "", "target": sp.position,
+	return {"sprite": sp, "dot": dot, "tool": tool, "job": "", "target": sp.position,
 		"facing": 0, "step": 1, "anim_t": 0.0}
 
 
@@ -263,22 +279,42 @@ func _process(delta: float) -> void:
 				w["step"] = (int(w["step"]) + 1) % 4
 			sp.frame = int(w["facing"]) * FRAME_COLS + _step_col(int(w["step"]))
 		else:
-			sp.position = w["target"]
-			# 到了工地：干活的岗位播**劳作动画**，守卫与待命仍站着。
+			# 到了工地。
 			#
-			# 劳作帧用的是素材里**本来就有的第 5 行** —— 64x112 的图按 4 列 7 行切，
-			# 代码一直只用到第 0~3 行（四个方向的走），第 4~6 行从来没被用过。
-			# 放大核对过（_wip/_sheet_chuniang_walk.png）：第 5 行是弯腰前伸的姿势，
-			# 正是干活的样子。**所以这个功能不需要新素材。**
+			# ⚠ 第 4~6 行不能用 —— 放大核对时我觉得第 5 行像弯腰干活，
+			# 但用户实机看了说「都不是很像」。那三行是「抱东西 / 前倾 / 举手」，
+			# 没有一个读得出劳作。**别人的眼睛比我的判断准，以实机为准。**
+			#
+			# 改成不靠某个姿势，靠**动的方式**：
+			#   · 用**本方向那一行**（姿势本身是对的）的四个列做慢速循环
+			#   · 慢速 0.34s —— 比走路的 0.16s 慢一倍，读起来是「使劲」不是「原地走」
+			#   · 每一拍中间往下压 2px（发力），收力回位
+			# 姿势不变、节奏变沉、身体有起伏，这三样加起来才读得出「在干活」。
 			if _is_labour(str(w["job"])):
 				w["anim_t"] = float(w["anim_t"]) + delta
-				if float(w["anim_t"]) >= WORK_FRAME_DUR:
+				var ph := float(w["anim_t"]) / WORK_FRAME_DUR
+				if ph >= 1.0:
 					w["anim_t"] = 0.0
 					w["step"] = (int(w["step"]) + 1) % FRAME_COLS
-				sp.frame = WORK_ROW * FRAME_COLS + int(w["step"])
+					ph = 0.0
+				sp.frame = int(w["facing"]) * FRAME_COLS + _step_col(int(w["step"]))
+				# ph 0→1，中点是 1，所以「往下压」发生在每一拍的正中
+				var dip := 1.0 - absf(ph * 2.0 - 1.0)
+				sp.position = w["target"] + Vector2(0, -WORK_DIP * dip)
+				# 工具跟着一起下去、再抬起来 —— 这是「在干活」最直读的一笔
+				var tool: Sprite2D = w["tool"]
+				if is_instance_valid(tool):
+					tool.visible = true
+					tool.texture = _get_tex(str(SITE_ICON.get(str(w["job"]),
+						SITE_ICON["water"])))
+					tool.position = Vector2(7, -3 + WORK_DIP * dip)
 			else:
-				# 停下时回到站立帧
+				# 守卫站着看、待命闲着：回到站立帧，不播劳作，也不拿工具
 				sp.frame = int(w["facing"]) * FRAME_COLS + 1
+				sp.position = w["target"]
+				var tool2: Sprite2D = w["tool"]
+				if is_instance_valid(tool2):
+					tool2.visible = false
 
 
 ## 会「动手」的岗位。守卫是站着看、待命是闲着，都不该播劳作动画。
