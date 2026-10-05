@@ -122,7 +122,10 @@ func _test_dig_flow() -> void:
 
 	# 施工中不允许再挖
 	_ok(not bool(_game.dig_info()["ok"]), "施工期间不可再挖")
-	_eq(str(_game.dig_info()["reason"]).contains("正在施工"), true, "拒绝理由含「正在施工」")
+	# 理由文案要短：这段文字要塞进 HUD 右侧 96px 宽的标签，超过两行会压住按钮
+	var reason := str(_game.dig_info()["reason"])
+	_eq(reason.contains("施工中"), true, "拒绝理由指出正在施工（%s）" % reason)
+	_ok(reason.length() <= 10, "理由足够短（%d 字）" % reason.length())
 
 	# 推进两天
 	var m1: String = _game.advance_day()

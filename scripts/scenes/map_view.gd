@@ -184,7 +184,7 @@ func _is_reserved(ax: float, ay: float) -> bool:
 	if ax > FIELD_X0 - 1.0 and ax < FIELD_X0 + FIELD_COLS + 1.0 \
 			and ay > FIELD_Y0 - 1.0 and ay < FIELD_Y0 + FIELD_ROWS + 1.0:
 		return true
-	if ay > 14.0:
+	if ay > 13.0:
 		return true
 	if ax > 33.0:
 		return true
@@ -201,23 +201,25 @@ func _place_props() -> void:
 		lv = int(_game.oasis_level())
 
 	# ── 聚落（南侧一排，位置按贴图实际尺寸错开，避免相互压盖）──
-	_add_prop("res://buildings/warehouse_01.png", 7, 17)     # 48x48 仓库
-	_add_prop("res://buildings/reservoir_01.png", 12, 16.5)  # 64x64 涝坝
-	_add_prop("res://buildings/campfire_01.png", 17, 17)     # 32x32 营火
-	_add_prop("res://buildings/bazar_stall_red.png", 19, 17)
-	_add_prop("res://buildings/bazar_stall_blue.png", 21, 17)
-	_add_prop("res://buildings/inn_01.png", 26, 16.5)        # 64x64 驿馆
-	_add_prop("res://buildings/kitchen_01.png", 4, 15)
-	_add_prop("res://buildings/grape_drying_01.png", 30, 13) # 48x64 晾房
+	# ⚠ 这一排不能低于 y≈272：底栏从 y=276 开始盖住地图。
+	# 64x64 的建筑以中心对齐，所以中心点最下只能到 15（=240px，占 208..272）。
+	_add_prop("res://buildings/warehouse_01.png", 7, 15.5)    # 48x48 仓库
+	_add_prop("res://buildings/reservoir_01.png", 12, 15)     # 64x64 涝坝
+	_add_prop("res://buildings/campfire_01.png", 17, 15.5)    # 32x32 营火
+	_add_prop("res://buildings/bazar_stall_red.png", 19, 15.5)
+	_add_prop("res://buildings/bazar_stall_blue.png", 21, 15.5)
+	_add_prop("res://buildings/inn_01.png", 26, 15)           # 64x64 驿馆
+	_add_prop("res://buildings/kitchen_01.png", 4, 13.5)
+	_add_prop("res://buildings/grape_drying_01.png", 30, 12)  # 48x64 晾房
 
 	# ── 随绿洲等级逐步出现的建筑：绿洲越大，聚落越像样 ──
 	if lv >= 3:
-		_add_prop("res://buildings/stable_01.png", 31, 17)   # 48x48 马厩
+		_add_prop("res://buildings/stable_01.png", 31, 15.5)  # 48x48 马厩
 	if lv >= 4:
-		_add_prop("res://buildings/watchtower_sand_01.png", 2, 12)
+		_add_prop("res://buildings/watchtower_sand_01.png", 2, 11)
 	if lv >= 5:
-		_add_prop("res://buildings/shop_01.png", 6, 14)
-		_add_prop("res://buildings/workshop_01.png", 33, 15)
+		_add_prop("res://buildings/shop_01.png", 6, 12.5)
+		_add_prop("res://buildings/workshop_01.png", 33, 13)
 
 	# ── 农田：坎儿井通水后才出现（水决定能种多少地）──
 	var slots: Array = []
@@ -273,7 +275,7 @@ func _place_props() -> void:
 	# ── 明渠：涝坝往东引水，末端接农田 ──
 	if lv >= 1:
 		for i in range(clampi(lv, 1, 4)):
-			_add_prop("res://tiles/water/canal_h_green.png", 13.5 + i, 16.5, 2)
+			_add_prop("res://tiles/water/canal_h_green.png", 13.5 + i, 15, 2)
 
 
 func _build_shafts() -> void:

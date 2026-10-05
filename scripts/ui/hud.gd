@@ -221,13 +221,14 @@ func _on_build_pressed() -> void:
 
 
 func _build_bottom() -> void:
-	# 76 高 = 日志 40（约 2.5 行）+ 输入行 31 + 边距。资源行在顶栏第二行。
-	# 日志不能只留一行 —— 它是这个游戏唯一的信息反馈通道。
-	var p := _make_panel(Rect2(0, 284, 640, 76), Color(0.11, 0.085, 0.06, 0.94))
+	# 84 高 = 日志 48（正好 3 行）+ 输入行 31 + 边距。资源行在顶栏第二行。
+	# 日志给 40 会只显示 2.5 行 —— 最上面那行被切掉半截，实机截图里很难看。
+	# 48 是 3×16 的整数倍，不出现半行。
+	var p := _make_panel(Rect2(0, 276, 640, 84), Color(0.11, 0.085, 0.06, 0.94))
 
 	_log = RichTextLabel.new()
 	_log.position = Vector2(4, 2)
-	_log.size = Vector2(632, 40)
+	_log.size = Vector2(632, 48)
 	_log.bbcode_enabled = true
 	_log.scroll_following = true
 	_log.scroll_active = false
@@ -237,13 +238,13 @@ func _build_bottom() -> void:
 	p.add_child(_log)
 
 	_input = LineEdit.new()
-	_input.position = Vector2(4, 44)
+	_input.position = Vector2(4, 52)
 	_input.size = Vector2(556, 31)
 	_input.placeholder_text = "说点什么…（回车）"
 	_input.add_theme_font_size_override("font_size", 12)
 	p.add_child(_input)
 
-	var send := _make_button(p, Rect2(564, 46, 68, 26), "发送")
+	var send := _make_button(p, Rect2(564, 54, 68, 26), "发送")
 	send.pressed.connect(_on_send)
 	_input.text_submitted.connect(func(_t): _on_send())
 
@@ -424,15 +425,16 @@ func refresh() -> void:
 	]
 	_res.modulate = Color(1.0, 0.68, 0.6) if shortage else Color(1, 1, 1)
 
-	# 右栏底部显示实时施工进度，比静态帮助文字有用
-	var c: Dictionary = _game.state["construction"]
-	if str(c.get("kind", "")) == "":
-		_info.text = "施工：空闲\n点竖井也能开挖"
-		_info.modulate = Color(0.72, 0.66, 0.55)
+	# 右栏底部这块显示「坎儿井整体进度」，与按钮旁那行「本次能不能挖」不重复。
+	# 注意：整块只有 1~2 行空间，写长了会溢出面板下沿（实机截图里「剩 5/5 天」被底栏切掉）。
+	var sections_now := int(_game.query("karez.sections"))
+	if sections_now >= 6:
+		_info.text = "竖井 %d/6\n已到源段" % sections_now
 	else:
-		_info.text = "施工中：%s\n剩 %d/%d 天" % [str(c.get("display", "")),
-			int(c.get("days_left", 0)), int(c.get("total_days", 0))]
-		_info.modulate = Color(0.95, 0.85, 0.5)
+		var days_next := int(_game.dig_info().get("days", 0))
+		# 显式换行：让 96px 宽自动折行会把「下段」拆成「下」/「段」
+		_info.text = "竖井 %d/6\n下段 %d 天" % [sections_now, days_next]
+	_info.modulate = Color(0.72, 0.66, 0.55)
 
 	_refresh_dig()
 
@@ -451,7 +453,10 @@ func _refresh_dig() -> void:
 		_dig_hint.modulate = Color(0.65, 0.95, 0.65)
 	else:
 		_dig_btn.disabled = true
-		_dig_btn.text = "挖竖井"
+		# 禁用态按钮文字会被压暗，写「挖竖井」看着像空按钮；
+		# 直接写清为什么不能点，玩家一眼就懂
+		var c: Dictionary = _game.state["construction"]
+		_dig_btn.text = "施工中…" if str(c.get("kind", "")) != "" else "材料不足"
 		_dig_hint.text = str(info["reason"])
 		_dig_hint.modulate = Color(1.0, 0.62, 0.5)
 

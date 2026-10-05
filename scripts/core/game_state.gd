@@ -756,18 +756,22 @@ func dig_info() -> Dictionary:
 	var res_mats: Dictionary = state["resources"]["materials"]
 	var lack: Array = []
 	for k in mats:
-		if float(res_mats.get(k, 0.0)) < float(mats[k]):
-			lack.append("%s 需%d/有%d" % [_mat_cn(k), int(mats[k]), int(res_mats.get(k, 0.0))])
+		var have := float(res_mats.get(k, 0.0))
+		if have < float(mats[k]):
+			lack.append("%s差%d" % [_mat_cn(k), int(float(mats[k]) - have)])
 	var need_tools := int(cfg.get("requires_tools", 0))
-	if float(res_mats.get("tools", 0.0)) < need_tools:
-		lack.append("工具 需%d/有%d" % [need_tools, int(res_mats.get("tools", 0.0))])
+	var have_tools := int(float(res_mats.get("tools", 0.0)))
+	if have_tools < need_tools:
+		lack.append("工具差%d" % (need_tools - have_tools))
 
+	# 这段文本会被塞进 HUD 右侧 96px 宽的标签里。超过两行就会压住它下面的按钮
+	# （实机截图确认过：「第一段竖井（井口段）」折成三行、盖住了「建造」）。
+	# 所以刻意写短：完整段名放顶栏的「建设:」那一格，这里只留状态与数字。
 	var reason := ""
 	if not construction_idle():
-		reason = "正在施工：%s（剩 %d 天）" % [
-			str(state["construction"].get("display", "")), int(state["construction"].get("days_left", 0))]
+		reason = "施工中 剩%d天" % int(state["construction"].get("days_left", 0))
 	elif not lack.is_empty():
-		reason = "、".join(lack)
+		reason = "缺 " + " ".join(lack)
 
 	return {
 		"ok": reason == "",

@@ -41,6 +41,20 @@ func _process(_delta: float) -> void:
 				_frames = 0
 		3:
 			if _frames >= 20:
+				# 再截一张「施工中」的：这是用户实际看到的、也是布局最容易出问题的状态
+				_gs.state["action_points"] = 8
+				_gs.start_dig()
+				_gs.advance_phase()
+				_stage = 4
+				_frames = 0
+		4:
+			if _frames >= 25:
+				_dump_ui()
+				_shot("shot_C_施工中.png")
+				_stage = 5
+				_frames = 0
+		5:
+			if _frames >= 20:
 				print("CAPTURE done")
 				get_tree().quit()
 
