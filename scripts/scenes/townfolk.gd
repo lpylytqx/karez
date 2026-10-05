@@ -34,24 +34,28 @@ const SKIN := {
 ##   巴扎(19,15.5)(21,15.5) 驿馆(26,15) 马厩(31,15.5，lv>=3 才出现)
 ##   马匪头目放在绿洲之外的沙漠里 —— 他本来就不该在村里
 ##
-## ⚠ y 不要大于 16.4（=262px）：底栏从 y=268 开始，人会整个人被盖住。
+## ⚠ 两条硬约束：
+##   1. y ≤ 16.4（=262px）：底栏从 y=268 开始，人会整个人被盖住
+##   2. **不能都排在同一条水平线上**。第一版六个人全在 y≈16，
+##      加上建筑和名牌，聚落那一条挤成一团（用户反馈「过于密集」）。
+##      现在改成沿「自己的地标」纵向错落：有人在营火北侧、有人在驿馆北侧、
+##      有人在马厩旁，相邻两人的横向间距也尽量拉开。
 const SPOT := {
-	"lao_kanjiang":      Vector2(23.2, 16.0),
-	"muqam_yiren":       Vector2(19.5, 16.2),
-	"hasake_qishou":     Vector2(29.6, 16.4),
-	"hanshang_zhanggui": Vector2(25.2, 16.2),
-	"chuniang":          Vector2(15.6, 16.2),
-	"shenmi_lvren":      Vector2(10.2, 16.0),
-	"mafei_toumu":       Vector2(35.0, 6.0),
+	"lao_kanjiang":      Vector2(23.6, 15.0),   # 井口旁（竖井链脚下）
+	"muqam_yiren":       Vector2(19.8, 13.6),   # 巴扎北侧
+	"hasake_qishou":     Vector2(31.0, 12.6),   # 马厩与晾房之间
+	"hanshang_zhanggui": Vector2(26.4, 12.4),   # 驿馆北侧
+	"chuniang":          Vector2(15.4, 13.8),   # 营火北侧
+	"shenmi_lvren":      Vector2(9.0, 13.4),    # 涝坝西北
+	"mafei_toumu":       Vector2(35.0, 6.0),    # 沙漠（村里不该有他）
 }
 
-## 名字牌的纵向偏移。**必须错开** —— 聚落那一排五个人挨得近，
-## 都用同一个偏移会把名字挤成一行糊在一起（第一版实机截图就是这样：
-## 「厨娘木卡姆艺人[按 E 说话]商队掌柜」）。
+## 名字牌的纵向偏移。**必须错开**，而且要错得够开：
+## 间距小于牌高(20px)时相邻两块会贴在一起。这里用 24px 的差。
 const LABEL_DY := {
-	"lao_kanjiang": -34.0, "muqam_yiren": -52.0, "hasake_qishou": -34.0,
-	"hanshang_zhanggui": -52.0, "chuniang": -34.0, "shenmi_lvren": -52.0,
-	"mafei_toumu": -34.0,
+	"lao_kanjiang": -32.0, "muqam_yiren": -56.0, "hasake_qishou": -32.0,
+	"hanshang_zhanggui": -56.0, "chuniang": -32.0, "shenmi_lvren": -56.0,
+	"mafei_toumu": -32.0,
 }
 
 const FACE_ROW := {"lao_kanjiang": 0, "muqam_yiren": 0, "hasake_qishou": 1,
