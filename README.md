@@ -1,8 +1,9 @@
 # 《坎儿井》项目工作区
 
 > 从 [游戏设计大纲_坎儿井.md](C:\Users\j\Desktop\游戏设计大纲_坎儿井.md)（GDD v1.0）落地为可运行游戏。
-> 项目状态：**S2 治水核心已可玩** —— 地图、角色行走、挖竖井、事件抉择、AI 对话已收进同一屏，
-> **挖通竖井后绿洲会实时变大**（见 `docs/screenshots/` 的两张对比图）。
+> 项目状态：**S2 治水核心可玩 + S4 角色记忆召回已跑通**
+> —— 地图、角色行走、挖竖井、事件抉择、AI 对话收在同一屏，**挖通竖井后绿洲实时变大**（见 `docs/screenshots/`）；
+> **角色能复述出上次答应过你的具体细节**（见下文 S4 一节）。
 > M1 的 AI 管道保持打通，服务离线时自动降级，除对话外全部功能可用。
 
 ---
@@ -157,10 +158,29 @@ copy ai_backend\.env.example ai_backend\.env
 > 左图：水 90/300、日入 5 方、已告警「缺水，入不敷出」。
 > 右图：第 10 天、坎儿井 3/6、日入 170 方，绿洲明显扩张，农田随之出现。
 
+### S4 AI 角色 —— 部分完成（2026-10-05）
+
+**核心能力已跑通：角色能记住上次答应过什么。**
+
+- [x] 记忆结构化存储（`day` / `text` / `kind` / `imp`），兼容旧存档的纯字符串格式
+- [x] **按重要度召回** —— prompt 里一直写着「按重要程度排序」，而此前的实现给的是插入顺序
+- [x] **承诺单独成块**喂给模型（混在记忆大列表里容易被忽略）
+- [x] 淘汰策略改为「丢最不重要且最旧」，避免珍贵承诺被几十条闲聊挤掉
+- [x] **本地兜底**：AI 漏记承诺时由本地补记 —— 实测 `deepseek-flash` 的 `memory_append`
+      在 temperature=1.0 下时有时无，而「记住承诺」是 S4 的核心卖点，
+      不能托付给模型的自觉（与「LLM 不做精确算术」是同一条纪律）
+- [x] 真实 API 联调测试 `ai_backend/live_test.py`（两轮：许承诺 → 回忆承诺）
+- [x] Godot 客户端端到端测试 `tests/live_client_test.tscn`
+- [ ] 好感度 `affinity` 的读写 —— 数值字段已在，但对话与事件都还没真正影响它
+
+> **实测效果**（`live_client_test.tscn` 输出）：
+> 喂入记忆「答应过要修好那把松头的镢头」后问「上次答应你的事还记得吗」，
+> 老坎匠答：**「（停下手里的活，斜眼看他）那把镢头。松头的那个。哼，你倒记得。」**
+> —— 复述出了具体细节，不是套话。
+
 ### 下一步（尚未开始）
 
 - **S3 经营骨架**：建筑系统目前只有 4 种且只做了一半（能建造、能落成、还没接产出）
-- **S4 AI 角色**：记忆写入已经打通，但还没做"记住上次的承诺"的召回
 - **S5 探索 / S6 战斗 / S7 外交**：未开始
 - **音频**：188 个音频文件全是 Kenney 通用音效，尚未接入，且题材不符（见 `assets/README.md` 的合规说明）
 
@@ -168,11 +188,23 @@ copy ai_backend\.env.example ai_backend\.env
 
 ## 验收命令速查
 
+**不需要 Key、不联网：**
+
 ```powershell
 .venv\Scripts\python.exe ai_backend\verify.py                    # 项目结构与数值   145 项 PASS
 .venv\Scripts\python.exe ai_backend\smoke_test.py                # AI 管道自检       44 项通过
-tools\Godot_v4.7.2-stable_win64.exe --headless --path scripts res://tests/logic_test.tscn   # 核心逻辑 79 项
+tools\Godot_v4.7.2-stable_win64.exe --headless --path scripts res://tests/logic_test.tscn   # 核心逻辑 96 项
 ```
+
+**需要 Key、会真实调用 DeepSeek（先启动 `ai_backend\main.py`）：**
+
+```powershell
+.venv\Scripts\python.exe ai_backend\live_test.py                 # 两轮：许承诺 → 回忆承诺
+tools\Godot_v4.7.2-stable_win64.exe --headless --path scripts res://tests/live_client_test.tscn
+```
+
+> `live_test.py` 里最关键的一条断言是**「AI 主动把承诺写进 memory_append」** ——
+> 这条实测不稳定，所以本地加了兜底；跑不通也不代表游戏坏了，见上文 S4 说明。
 
 > **注意：Godot 可执行文件就在本仓库 `tools\` 内，无需另外安装。**
 > 该文件 172 MB，超过 GitHub 单文件上限，因此在 `.gitignore` 里被排除 —— 换机器请另行下载 Godot 4.7.2。

@@ -30,6 +30,8 @@ var player_character := "lao_kanjiang"
 var _http: HTTPRequest
 var _pending_speaker := ""
 var _pending_recent: Array = []
+## 本次请求的玩家原话。用于 AI 漏记承诺时的本地兜底。
+var _pending_input := ""
 
 
 func _ready() -> void:
@@ -141,18 +143,23 @@ func send(player_input: String, speaker: String = "", recent: Array = []) -> boo
 
 	_pending_speaker = speaker
 	_pending_recent = recent
+	_pending_input = player_input
 
 	if offline_mode:
 		request_failed.emit("offline_mode 已开启")
 		return false
 
+	var cid := speaker if speaker != "" else player_character
 	var body := {
 		"schema_version": SCHEMA_VERSION,
 		"scene": "karez_work",
 		"player_input": player_input,
-		"character_id": speaker if speaker != "" else player_character,
+		"character_id": cid,
 		"context": build_context_for_ai(speaker),
-		"memory": get_memory(speaker if speaker != "" else player_character),
+		"memory": get_memory(cid),
+		# 承诺单独送一份：混在记忆大列表里模型容易忽略，
+		# 而「记住上次答应过什么」是 GDD 判定 AI 是否真的活了的核心。
+		"promises": get_promises(cid),
 		"recent": recent,
 	}
 	var url := "http://%s:%d/narrate" % [_ai_host(), _ai_port()]
@@ -200,13 +207,36 @@ func apply_response(payload: Dictionary) -> void:
 	if deltas is Array:
 		apply_deltas(deltas)
 
+	var speaker := _pending_speaker if _pending_speaker != "" else player_character
+	var wrote := false
 	for entry in payload.get("memory_append", []):
 		if entry is String and entry != "":
-			add_memory(_pending_speaker if _pending_speaker != "" else player_character, entry)
+			add_memory(speaker, entry)
+			wrote = true
+
+	# 兜底：模型漏记时由本地补。
+	# 实测（ai_backend/live_test.py）deepseek-flash 在明显的承诺场景下
+	# 时而返回 ["...许诺..."]、时而返回 []。而「角色记住承诺」是 S4 的核心卖点，
+	# 不能托付给模型的自觉 —— 与「LLM 不做精确算术」是同一条纪律。
+	if not wrote:
+		_promise_fallback(speaker)
 
 	clamp_all()
 	response_received.emit(payload)
 	state_changed.emit()
+
+
+## 玩家原话里含明确承诺时，本地记一条。已有同样内容则不重复记。
+func _promise_fallback(speaker: String) -> void:
+	if _pending_input.strip_edges() == "":
+		return
+	if _infer_kind(_pending_input) != "promise":
+		return
+	var text := "玩家承诺：%s" % _pending_input
+	for existing in _memory_sorted(speaker):
+		if str(existing["text"]) == text:
+			return
+	add_memory(speaker, text, "promise")
 
 
 # ---------------------------------------------------------------------------
@@ -410,22 +440,124 @@ func clamp_all() -> void:
 # ---------------------------------------------------------------------------
 # 记忆
 # ---------------------------------------------------------------------------
+#
+# 存储格式（结构化，便于按重要度召回）：
+#   {"day": int, "text": String, "kind": String, "imp": int}
+# 兼容旧存档里的纯字符串条目（当作 imp=1）。
+#
+# 重要度来源有两处：
+#   • 事件系统可显式给 kind（promise / conflict / secret ...）
+#   • AI 的 memory_append 按 output_contract 是「字符串数组」，没有 kind 字段，
+#     所以这里用关键词兜底识别「承诺」—— 这正是 GDD 里
+#     「关掉 AI 这三人会明显死掉」那条判据最需要的行为。
 
-func get_memory(cid: String) -> Array:
+const MEM_IMP := {
+	"promise": 3, "bond": 3,
+	"conflict": 2, "secret": 2, "discovery": 2, "favor": 2,
+}
+
+const MEM_KIND_CN := {
+	"promise": "承诺", "bond": "羁绊", "conflict": "冲突",
+	"secret": "秘密", "discovery": "发现", "favor": "人情",
+}
+
+const PROMISE_CUES := ["答应", "承诺", "说好", "保证", "发誓", "一言为定", "许下", "立下"]
+const CONFLICT_CUES := ["翻脸", "争吵", "冲突", "得罪", "结怨"]
+const SECRET_CUES := ["秘密", "别告诉", "不要外传", "只跟你说", "别声张"]
+
+## AI 返回的记忆是纯字符串，没有 kind，用关键词推断重要度。
+func _infer_kind(text: String) -> String:
+	for c in PROMISE_CUES:
+		if text.contains(c):
+			return "promise"
+	for c in CONFLICT_CUES:
+		if text.contains(c):
+			return "conflict"
+	for c in SECRET_CUES:
+		if text.contains(c):
+			return "secret"
+	return ""
+
+
+func _norm_memory(e) -> Dictionary:
+	if e is Dictionary:
+		var k := str(e.get("kind", ""))
+		return {
+			"day": int(e.get("day", 0)),
+			"text": str(e.get("text", "")),
+			"kind": k,
+			"imp": int(e.get("imp", MEM_IMP.get(k, 1))),
+		}
+	return {"day": 0, "text": str(e), "kind": "", "imp": 1}
+
+
+## 按「重要度降序，其次时间降序」排。
+## prompt 里写的是「按重要程度排序」，而早先的实现给的是插入顺序 —— 标签是假的。
+func _memory_sorted(cid: String) -> Array:
 	var c: Dictionary = state["characters"].get(cid, {})
-	var mem: Array = c.get("memory", [])
-	return mem.slice(maxi(0, mem.size() - 8))
+	var out: Array = []
+	for e in c.get("memory", []):
+		out.append(_norm_memory(e))
+	out.sort_custom(func(a, b):
+		if int(a["imp"]) != int(b["imp"]):
+			return int(a["imp"]) > int(b["imp"])
+		return int(a["day"]) > int(b["day"])
+	)
+	return out
 
 
-func add_memory(cid: String, text: String) -> void:
+## 给 AI 的记忆文本（已按重要度排序），上限与 prompt 的接收能力一致。
+func get_memory(cid: String) -> Array:
+	var out: Array = []
+	for e in _memory_sorted(cid).slice(0, 13):
+		var k := str(e["kind"])
+		var tag := ("【%s】" % MEM_KIND_CN[k]) if MEM_KIND_CN.has(k) else ""
+		out.append("[第%d天]%s%s" % [int(e["day"]), tag, str(e["text"])])
+	return out
+
+
+## 只取「承诺」类记忆。单独成块喂给模型，比混在大列表里更容易被遵守。
+func get_promises(cid: String) -> Array:
+	var out: Array = []
+	for e in _memory_sorted(cid):
+		if str(e["kind"]) == "promise":
+			out.append("[第%d天] %s" % [int(e["day"]), str(e["text"])])
+	return out.slice(0, 5)
+
+
+func add_memory(cid: String, text: String, kind: String = "") -> void:
+	if text.strip_edges() == "":
+		return
 	if not state["characters"].has(cid):
 		state["characters"][cid] = {"affinity": 0.0, "mood": 60.0, "memory": []}
 	var mem: Array = state["characters"][cid].get("memory", [])
-	mem.append("[第%d天] %s" % [get_day(), text])
-	# 记忆上限 200 条，超出丢最旧的（对应 characters.json 的 recall_rule）
+	var k := kind if kind != "" else _infer_kind(text)
+	mem.append({
+		"day": get_day(),
+		"text": text,
+		"kind": k,
+		"imp": int(MEM_IMP.get(k, 1)),
+	})
+	# 上限 200 条。超出时丢「最不重要且最旧」的，而不是单纯丢最旧的 ——
+	# 否则一条珍贵承诺会被后面几十条闲聊挤掉。
 	while mem.size() > 200:
-		mem.pop_front()
+		_cull_memory(mem)
 	state["characters"][cid]["memory"] = mem
+
+
+func _cull_memory(mem: Array) -> void:
+	var worst := 0
+	var worst_imp := 999
+	var worst_day := 999999
+	for i in range(mem.size()):
+		var e := _norm_memory(mem[i])
+		var imp := int(e["imp"])
+		var day := int(e["day"])
+		if imp < worst_imp or (imp == worst_imp and day < worst_day):
+			worst = i
+			worst_imp = imp
+			worst_day = day
+	mem.remove_at(worst)
 
 
 # ---------------------------------------------------------------------------

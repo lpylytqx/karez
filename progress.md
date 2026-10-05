@@ -52,7 +52,7 @@
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
 | A | ~~装 Godot 4.4，打开 `scripts/project.godot` 确认能跑~~ | **DONE** | Godot 4.7.2 **已随仓库放在 `tools\`**，无需另装。2026-10-05 实机跑通，`capture.tscn` 可稳定出图 |
-| B | 办 DeepSeek 账号，复制 `.env.example` 为 `.env` 填 Key | TODO | **唯一硬阻塞**。Key 不要发给任何人，也不要提交 |
+| B | ~~办 DeepSeek 账号，复制 `.env.example` 为 `.env` 填 Key~~ | **DONE** | 已完成。Key 只写在 `ai_backend/.env` 内，该文件被 `.gitignore` 第 8 行 `**/.env` 挡住，已验证 `git status` 与 `git grep` 都搜不到 |
 | C | 找文化审核人，按 [03-ai-characters.md](D:\坎儿井\docs\03-ai-characters.md) 第四节过一遍 | TODO | 高风险 5 条优先 |
 | D | 定美术方案（A 生成 / B 买 / C 手绘）与逻辑分辨率 | TODO | 见 [04-art-checklist.md](D:\坎儿井\docs\04-art-checklist.md) 第七节 |
 | E | 确认那个旅人是谁、坎儿井为何淤塞 | TODO | 这是你的创作核心，必须你定 |
@@ -68,8 +68,22 @@
 | 戊 | 战斗系统（回合制 + AI 指挥敌人） | S3 之后 |
 | 己 | 3 分钟路演逐秒脚本 + 兜底对话表 | 核心循环能演示之后 ← **现已满足前置条件** |
 | 庚 | **S3 经营骨架**：给已建成的建筑接产出（驿馆住宿收入、仓库仓储加成、厨房粮→馕） | 无 |
-| 辛 | **S4 AI 角色**：记忆召回的 prompt 拼装（现在只写入不召回） | 要能跑通 live 模式（需 Key） |
+| 辛 | ~~**S4 AI 角色**：记忆召回的 prompt 拼装（现在只写入不召回）~~ | **DONE**（2026-10-05，见下） |
 | 壬 | 接入音频（188 个 Kenney 音效，题材不符，需先决定是替换还是先用着） | 你定策略 |
+| 癸 | 角色好感度 `affinity` 的读写（数值字段已在，但对话与事件都没真正影响它） | 无 |
+
+### S4 已完成（2026-10-05）
+
+| # | 事项 | 状态 | 产出 |
+|---|---|---|---|
+| 30 | 记忆结构化存储（`day` / `text` / `kind` / `imp`），兼容旧存档纯字符串 | DONE | `game_state.gd` |
+| 31 | 记忆按**重要度**召回（prompt 里一直写着「按重要程度排序」，之前给的却是插入顺序） | DONE | `_memory_sorted()` |
+| 32 | 承诺类记忆单独成块喂给模型（混在大列表里容易被忽略） | DONE | `get_promises()` + `characters.py` |
+| 33 | 关键词推断重要度（AI 的 `memory_append` 是纯字符串，没有 kind 字段） | DONE | `_infer_kind()` |
+| 34 | 淘汰策略改为「丢最不重要且最旧」，避免珍贵承诺被闲聊挤掉 | DONE | `_cull_memory()` |
+| 35 | **本地兜底**：AI 漏记承诺时由本地补记（实测模型记账不稳定） | DONE | `_promise_fallback()` |
+| 36 | 真实 API 联调测试（两轮：许承诺 → 回忆承诺） | DONE | [live_test.py](D:\坎儿井\ai_backend\live_test.py) |
+| 37 | Godot 客户端端到端测试（走完整 `send()` → HTTP → DeepSeek 路径） | DONE | [live_client_test.tscn](D:\坎儿井\scripts\tests\live_client_test.tscn) |
 
 ---
 
@@ -138,6 +152,20 @@
 | 2026-10-05 | **M1 实机跑通**。修 `ai_backend/main.py` 的启动崩溃：第 302 行 `print("  ⚠️ ...")` 在 GBK 控制台抛 `UnicodeEncodeError`，服务起不来。已在文件顶部加 Windows 下强制 stdout/stderr 走 UTF-8 的重配置（治本），并把该 emoji 换成 `[!]`（双保险）。补 `scripts/icon.svg`（消除 `Error opening file 'res://icon.svg'`）。文档同步：Godot 版本 4.4→4.7.2、主场景 main.tscn→map.tscn、assets 状态由「空的」更新为实测数量、M1 验收清单两项勾选。 |
 | 2026-10-05 | **S2 治水核心落地**。新增 `event_system.gd`（64 条事件的条件 DSL + 加权抽取 + 效果应用）、`play.tscn/gd`（整合场景）、`hud.gd`（资源面板与事件卡片）、`tests/logic_test.tscn`（79 项断言）。`map_view.gd` 重写为「绿洲半径由 `karez.sections` 驱动」。踩到并修掉的问题见下节。 |
 | 2026-10-05 | 素材补给：从仓库内已有的 Kenney `tiny-farm`/`tiny-town` 提取 51 个 tile，降色到 32 色板后归位（`tiles/farmland` 0→11、`tiles/props` 0→32、`tiles/terrain` 14→22），正式素材 183→234 张。授权登记已追加。 |
+| 2026-10-05 | **接通真实 AI（S4 落地）**。`ai_backend/.env` 配好 Key 后 `/health` 返回 `mode=live`。修了记忆系统的四处问题：① `get_memory()` 返回插入顺序，而 prompt 里写的是「按重要程度排序」——标签是假的；② 只给 8 条而 prompt 能收 13 条；③ `kind` 字段被整个丢弃，承诺与闲聊无区别；④ 淘汰时只丢最旧的，珍贵承诺会被闲聊挤掉。新增 `live_test.py`（真实 API 两轮联调）与 `live_client_test.tscn`（Godot 客户端端到端）。实测老坎匠能复述出「那把松头的镢头」这类具体细节。AI 漏记承诺时由 `_promise_fallback()` 本地兜底 —— 实测 deepseek-flash 的 `memory_append` 时有时无，而记住承诺是 S4 的核心卖点。 |
+
+---
+
+## S4 记录：真实 AI 联调发现的问题
+
+| 现象 | 根因 | 处置 |
+|---|---|---|
+| prompt 声称「按重要程度排序」，实际是插入顺序 | `get_memory()` 只是 `mem.slice(-8)` | 加 `imp` 字段并真正排序 |
+| 承诺与闲聊在存储里没有区别 | `add_memory()` 把 `kind` 丢掉了，只存 `"[第N天] 文本"` | 改结构化存储，兼容旧格式 |
+| 灌 210 条闲聊后承诺消失 | 淘汰是 `pop_front()`，只按时间丢 | 改「丢最不重要且最旧」 |
+| **AI 的 `memory_append` 时有时无** | 契约只写「值得长期记住的事」，模型自由裁量；temperature=1.0 | 契约收紧 + **本地兜底**（关键记账不能托付给模型自觉） |
+| 角色记不住具体细节 | 承诺混在记忆大列表里被模型忽略 | `promises` 单独成块，放在记忆之前 |
+| PowerShell 调 API 中文全是乱码 | PS 5.1 的 `Invoke-RestMethod` 对无 charset 的 JSON 按 Latin-1 解码 | 改用 Python `urllib` 写测试（`live_test.py`） |
 
 ---
 

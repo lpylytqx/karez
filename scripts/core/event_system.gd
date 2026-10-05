@@ -197,7 +197,9 @@ func resolve(event: Dictionary, choice_index: int) -> Dictionary:
 	var ch: Dictionary = choices[choice_index]
 	var res: Dictionary = _game.apply_effects(ch.get("effects", []))
 	for m in res.get("memories", []):
-		_game.add_memory(str(m["character"]), str(m["text"]))
+		# 带上 kind：事件能明确区分「承诺/冲突/秘密」，
+		# 这类记忆的重要度高于 AI 对话里推断出来的
+		_game.add_memory(str(m["character"]), str(m["text"]), str(m.get("kind", "")))
 
 	var id := str(event.get("id", ""))
 	if not _resolved.has(id):

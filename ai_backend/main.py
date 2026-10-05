@@ -97,6 +97,7 @@ class NarrateRequest(BaseModel):
     character_id: str | None = None
     context: dict[str, Any] = Field(default_factory=dict)
     memory: list[str] = Field(default_factory=list)
+    promises: list[str] = Field(default_factory=list)
     recent: list[str] = Field(default_factory=list)
     use_pro: bool = False
 
@@ -159,6 +160,7 @@ def narrate(req: NarrateRequest) -> JSONResponse:
         player_input=req.player_input,
         context=req.context,
         memory=req.memory,
+        promises=req.promises,
         recent=req.recent,
     )
 

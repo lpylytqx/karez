@@ -30,6 +30,7 @@ func _ready() -> void:
 	_test_event_dsl()
 	_test_event_select()
 	_test_event_resolve()
+	_test_memory()
 	_test_save_roundtrip()
 
 	print("=".repeat(64))
@@ -263,6 +264,78 @@ func _test_event_resolve() -> void:
 	_eq(_events.export_state()["fire_count"].size(), 0, "reset 清空计数")
 	_events.import_state(st)
 	_ok(_events.export_state()["fire_count"].size() > 0, "import_state 恢复计数")
+
+
+func _test_memory() -> void:
+	_section("记忆系统：重要度与承诺召回")
+	# 用一个前面测试没碰过的角色，避免相互干扰
+	var cid := "chuniang"
+
+	# 关键词兜底：AI 的 memory_append 按 output_contract 是纯字符串，没有 kind 字段
+	_game.add_memory(cid, "你答应过要给她带一匹喀什的绸子")
+	var mem: Array = _game.get_memory(cid)
+	_eq(mem.size(), 1, "写入 1 条记忆")
+	_ok(str(mem[0]).contains("【承诺】"), "关键词「答应」被识别为承诺并打上标签")
+
+	# 显式 kind 优先于关键词推断。
+	# 注意这里不能断言它排在 [0] —— 承诺 imp3 会排在秘密 imp2 前面，排序是对的。
+	_game.add_memory(cid, "她提过老家的杏花开在三月", "secret")
+	var has_secret := false
+	for m in _game.get_memory(cid):
+		if str(m).contains("【秘密】"):
+			has_secret = true
+	_ok(has_secret, "显式 kind=secret 生效（打上【秘密】标签）")
+
+	# 排序：承诺(imp3) 必须排在 秘密(imp2) 与普通(imp1) 之前
+	_game.add_memory(cid, "今天天气不错")
+	_game.add_memory(cid, "又聊了两句闲话")
+	var ordered: Array = _game.get_memory(cid)
+	_ok(str(ordered[0]).contains("【承诺】"), "承诺排第 1 位（重要度优先）")
+	_ok(str(ordered[1]).contains("【秘密】"), "秘密排第 2 位")
+
+	# 只取承诺
+	var pr: Array = _game.get_promises(cid)
+	_eq(pr.size(), 1, "get_promises 只返回承诺类")
+	_ok(str(pr[0]).contains("绸子"), "承诺内容正确")
+	_ok(not str(pr[0]).contains("天气"), "闲聊不在承诺列表里")
+
+	# 淘汰策略：灌 210 条闲聊，承诺必须活下来
+	for i in range(210):
+		_game.add_memory(cid, "闲聊 %d" % i)
+	var after: Array = _game.get_memory(cid)
+	_ok(str(after[0]).contains("【承诺】"), "灌入 210 条闲聊后，承诺仍排在最前")
+	_eq(int(_game.state["characters"][cid]["memory"].size()), 200, "记忆条数被压到上限 200")
+	_eq(_game.get_promises(cid).size(), 1, "承诺未被淘汰")
+
+	# 兜底：AI 漏记承诺时由本地补记。
+	# 实测 deepseek-flash 的 memory_append 时有时无，而「记住承诺」是核心卖点。
+	var cid2 := "shenmi_lvren"
+	_game._pending_speaker = cid2
+	_game._pending_input = "我保证三天之内把货送到你手上"
+	_game.apply_response({"narration": "……", "memory_append": []})
+	_eq(_game.get_promises(cid2).size(), 1, "AI 漏记承诺时，本地兜底补记")
+
+	_game.apply_response({"narration": "……", "memory_append": []})
+	_eq(_game.get_promises(cid2).size(), 1, "重复触发不产生重复记忆")
+
+	var cid3 := "hasake_qishou"
+	_game._pending_speaker = cid3
+	_game._pending_input = "今天风挺大"
+	_game.apply_response({"narration": "……", "memory_append": []})
+	_eq(_game.get_memory(cid3).size(), 0, "非承诺内容不触发兜底")
+
+	# AI 自己记了就不该再兜底
+	var cid4 := "muqam_yiren"
+	_game._pending_speaker = cid4
+	_game._pending_input = "我答应下次带你去喀什"
+	_game.apply_response({"narration": "……", "memory_append": ["玩家答应带艺人去喀什"]})
+	_eq(_game.get_memory(cid4).size(), 1, "AI 已记账时不重复兜底")
+
+	# 旧存档兼容：纯字符串条目要能读（存档格式变更是单机项目最容易翻车的地方）
+	_game.state["characters"][cid]["memory"] = ["这是旧格式的字符串记忆"]
+	var legacy: Array = _game.get_memory(cid)
+	_eq(legacy.size(), 1, "旧格式字符串条目可读")
+	_ok(str(legacy[0]).contains("旧格式"), "旧格式内容正确")
 
 
 func _test_save_roundtrip() -> void:

@@ -121,6 +121,7 @@ def build_user_prompt(
     context: dict[str, Any] | None = None,
     memory: list[str] | None = None,
     recent: list[str] | None = None,
+    promises: list[str] | None = None,
 ) -> str:
     blocks: list[str] = []
 
@@ -128,6 +129,16 @@ def build_user_prompt(
 
     if context:
         blocks.append("【当前状态】\n" + _format_context(context))
+
+    # 承诺单独成块，放在记忆之前：混在大列表里模型容易忽略，
+    # 而「认得自己许下过的话」是判断 AI 角色是否真的活着的核心指标。
+    if promises:
+        blocks.append(
+            "【你亲口答应过玩家的事】\n"
+            "这些是你自己许下的，必须记得并遵守。玩家若提起，你要认得，不得装作没说过；\n"
+            "若要反悔，须用符合你性格的方式说明理由。\n"
+            + "\n".join(f"- {p}" for p in promises)
+        )
 
     if memory:
         mem_lines = "\n".join(f"- {m}" for m in memory[:13])
