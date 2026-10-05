@@ -307,10 +307,10 @@ func _place_props() -> void:
 		var kind := str(p.get("kind", ""))
 		if tex == "" or kind == "area":
 			continue
-		# 随绿洲等级出现的点缀建筑
-		if id == "watchtower" and lv < 4:
-			continue
-		if (id == "shop" or id == "workshop_b") and lv < 5:
+		# ⚠ 出现条件全部来自 sites.gd 的 gate，经 game_state.place_present() 判断。
+		# 这里**不再写 lv >= N 这类条件** —— 门槛只能有一处，
+		# 否则就是「两处各写一套」，正是前面坐标三张表反复出错的原因。
+		if _game != null and not _game.place_present(str(id)):
 			continue
 		var xy: Vector2 = _game.site_xy(id) if _game != null else p["xy"]
 		var sp := _add_prop("res://buildings/%s" % tex, xy.x, xy.y)

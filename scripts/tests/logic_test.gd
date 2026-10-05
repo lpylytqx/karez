@@ -517,6 +517,11 @@ func _test_npc_sprite_follows() -> void:
 
 	var g: Node = load("res://core/game_state.gd").new()
 	add_child(g)
+	# 掌柜需要坎儿井 >= 2 段才在场（角色按需出现），先推进到那时
+	_eq(g.character_present("hanshang_zhanggui"), false, "0 段时掌柜还不在场")
+	g.state["karez"]["sections"] = 2
+	_eq(g.character_present("hanshang_zhanggui"), true, "2 段后掌柜出现")
+
 	var tf: Node2D = load("res://scenes/townfolk.gd").new()
 	add_child(tf)
 	tf.setup(null, g)
@@ -529,7 +534,7 @@ func _test_npc_sprite_follows() -> void:
 	if zhang == null:
 		return
 	_ok(zhang.position.x > 300.0, "掌柜原本在右半边（%.1f）" % zhang.position.x)
-	_ok(g.state_changed.is_connected(tf.resync_positions),
+	_ok(g.state_changed.is_connected(tf._sync_presence),
 		"townfolk 已接上 state_changed（这就是上一版漏掉的那根线）")
 
 	# 把驿馆拖到左边

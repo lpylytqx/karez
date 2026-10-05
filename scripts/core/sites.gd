@@ -23,30 +23,51 @@ extends RefCounted
 ##
 ## kind:
 ##   "building"  玩家可见、可建造、**可移动**的建筑
-##   "fixed"     地景（涝坝/巴扎/晾房/灶），暂不允许移动
+##   "fixed"     地景，暂不允许移动
 ##   "area"      区域（竖井链、农田、树林、取土场），不是一个点，不能移动
+##
+## gate —— **什么时候出现在地图上**：
+##   {"kind": "always"}              开局就有
+##   {"kind": "sections", "n": N}    坎儿井通到第 N 段才出现
+##   {"kind": "threat"}              治安 < 40 或 第 12 天之后才出现
+## ⚠ 角色的出现条件**不单独写** —— 他跟着自己那座地标走
+##   （见 game_state.characters_present）。所以「地点按需出现」和
+##   「人物按需出现」共用同一张表，不可能对不上。
 const PLACES := {
-	# ── 聚落建筑 ──
-	"warehouse":    {"xy": Vector2(7.0, 15.5),  "kind": "building", "tex": "warehouse_01.png"},
-	"reservoir":    {"xy": Vector2(12.0, 15.0), "kind": "fixed",    "tex": "reservoir_01.png"},
-	"kitchen":      {"xy": Vector2(17.0, 15.5), "kind": "fixed",    "tex": "kitchen_01.png"},
-	"bazar_red":    {"xy": Vector2(19.0, 15.5), "kind": "fixed",    "tex": "bazar_stall_red.png"},
-	"bazar_blue":   {"xy": Vector2(21.0, 15.5), "kind": "fixed",    "tex": "bazar_stall_blue.png"},
-	"inn":          {"xy": Vector2(26.0, 15.0), "kind": "building", "tex": "inn_01.png"},
-	"grape_drying": {"xy": Vector2(30.0, 12.0), "kind": "fixed",    "tex": "grape_drying_01.png"},
-	"stable":       {"xy": Vector2(31.0, 15.5), "kind": "building", "tex": "stable_01.png"},
-	# ── 区域地标（不是一个点，只用来给 NPC/工作地点定位中心）──
-	"shaft_chain":  {"xy": Vector2(23.0, 13.4), "kind": "area", "tex": ""},
-	"fields":       {"xy": Vector2(16.5, 12.5), "kind": "area", "tex": ""},
-	"forest":       {"xy": Vector2(17.0,  7.0), "kind": "area", "tex": ""},
-	"dig_earth":    {"xy": Vector2( 6.5, 11.0), "kind": "area", "tex": ""},
-	"workshop":     {"xy": Vector2( 9.5, 13.5), "kind": "area", "tex": ""},
-	"guard_post":   {"xy": Vector2(21.5, 17.0), "kind": "area", "tex": ""},
-	"camp":         {"xy": Vector2(18.5, 17.0), "kind": "area", "tex": ""},
-	# ── 最西边的点缀 ──
-	"watchtower":   {"xy": Vector2( 2.0, 11.0), "kind": "fixed", "tex": "watchtower_sand_01.png"},
-	"shop":         {"xy": Vector2( 6.0, 12.5), "kind": "fixed", "tex": "shop_01.png"},
-	"workshop_b":   {"xy": Vector2(33.0, 13.0), "kind": "fixed", "tex": "workshop_01.png"},
+	# ── 开局就该有的：村子再惨，水和存粮的地方总得有 ──
+	"warehouse":    {"xy": Vector2(7.0, 15.5),  "kind": "building", "tex": "warehouse_01.png",
+		"gate": {"kind": "always"}},
+	"reservoir":    {"xy": Vector2(12.0, 15.0), "kind": "fixed",    "tex": "reservoir_01.png",
+		"gate": {"kind": "always"}},
+	"kitchen":      {"xy": Vector2(17.0, 15.5), "kind": "fixed",    "tex": "kitchen_01.png",
+		"gate": {"kind": "always"}},     # 吊锅当灶
+	# ── 村子活过来之后才陆续出现 ──
+	"stable":       {"xy": Vector2(31.0, 15.5), "kind": "building", "tex": "stable_01.png",
+		"gate": {"kind": "sections", "n": 2}},
+	"inn":          {"xy": Vector2(26.0, 15.0), "kind": "building", "tex": "inn_01.png",
+		"gate": {"kind": "sections", "n": 2}},
+	"bazar_red":    {"xy": Vector2(19.0, 15.5), "kind": "fixed",    "tex": "bazar_stall_red.png",
+		"gate": {"kind": "sections", "n": 3}},
+	"bazar_blue":   {"xy": Vector2(21.0, 15.5), "kind": "fixed",    "tex": "bazar_stall_blue.png",
+		"gate": {"kind": "sections", "n": 3}},
+	"grape_drying": {"xy": Vector2(30.0, 12.0), "kind": "fixed",    "tex": "grape_drying_01.png",
+		"gate": {"kind": "sections", "n": 4}},
+	"watchtower":   {"xy": Vector2( 2.0, 11.0), "kind": "fixed",    "tex": "watchtower_sand_01.png",
+		"gate": {"kind": "threat"}},
+	"shop":         {"xy": Vector2( 6.0, 12.5), "kind": "fixed",    "tex": "shop_01.png",
+		"gate": {"kind": "sections", "n": 5}},
+	"workshop_b":   {"xy": Vector2(33.0, 13.0), "kind": "fixed",    "tex": "workshop_01.png",
+		"gate": {"kind": "sections", "n": 5}},
+	# ── 区域地标：地本身一直在，只是有没有人在那干活 ──
+	"shaft_chain":  {"xy": Vector2(23.0, 13.4), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"fields":       {"xy": Vector2(16.5, 12.5), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"forest":       {"xy": Vector2(17.0,  7.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"dig_earth":    {"xy": Vector2( 6.5, 11.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"workshop":     {"xy": Vector2( 9.5, 13.5), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"guard_post":   {"xy": Vector2(21.5, 17.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"camp":         {"xy": Vector2(18.5, 17.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	# 沙漠匪巢：村里不该有他，但地点一直在那儿
+	"desert_den":   {"xy": Vector2(35.0,  6.0), "kind": "area", "tex": "", "gate": {"kind": "threat"}},
 }
 
 ## NPC -> 他守着哪个地标。站位 = 该地标的 xy + OFFSET。

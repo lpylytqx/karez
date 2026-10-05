@@ -99,6 +99,57 @@ func job_xy(jid: String) -> Vector2:
 
 
 # ---------------------------------------------------------------------------
+# 地点与角色按需出现
+# ---------------------------------------------------------------------------
+#
+# 为什么：一个只剩 6 口人、水够撑 7 天、粮够撑 4 天的村子，
+# 不该有一个「专职掌伙食的厨娘」，也不该有驿馆、巴扎、晾房、商铺 ——
+# 那些建筑预设了村子已经在正常运转。
+#
+# 规则只有一条：
+#   地标按 sites.gd 的 gate 出现；**角色的出现条件不单独写，跟着他的地标走。**
+# 所以「地点按需出现」与「人物按需出现」共用同一张表，不可能对不上。
+#
+# ⚠ 判断只写在这里。地图（map_view）、NPC（townfolk）、底栏「对谁说」（hud）
+#    都调 place_present() / characters_present()，不许各自判断 ——
+#    「两处各写一套」正是前面坐标三张表反复出错的根因。
+
+## 界面上的固定顺序（与 data/characters.json 一致），免得下拉框顺序乱跳。
+const CHAR_ORDER := ["lao_kanjiang", "muqam_yiren", "hasake_qishou",
+	"hanshang_zhanggui", "chuniang", "shenmi_lvren", "mafei_toumu"]
+
+
+## 这个地标此刻该不该出现在地图上。
+func place_present(id: String) -> bool:
+	var p: Dictionary = Sites.PLACES.get(id, {})
+	if p.is_empty():
+		return false
+	var g: Dictionary = p.get("gate", {})
+	match str(g.get("kind", "always")):
+		"sections":
+			return int(state.get("karez", {}).get("sections", 0)) >= int(g.get("n", 0))
+		"threat":
+			return float(state.get("stats", {}).get("security", 60.0)) < 40.0 \
+				or get_day() >= 12
+		_:
+			return true
+
+
+## 当前该出现在世界里的角色。跟着各自守着的地标走。
+func characters_present() -> Array:
+	var out: Array = []
+	for cid in CHAR_ORDER:
+		if place_present(str(Sites.NPC_HOME.get(cid, ""))):
+			out.append(cid)
+	return out
+
+
+## 某个角色此刻在不在场 —— 也是一处判断，别在别处再写一遍条件。
+func character_present(cid: String) -> bool:
+	return characters_present().has(cid)
+
+
+# ---------------------------------------------------------------------------
 # 数值与状态
 # ---------------------------------------------------------------------------
 

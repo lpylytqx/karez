@@ -61,7 +61,46 @@ var _hint: Label
 ## 「对谁说」那一行的身份说明，让玩家看出换个人有什么用
 var _who_hint: Label
 ## 是否已经把「怎么选对话对象」讲过一遍
+## 下拉框里当前列着谁（id）。与 _speaker 的选项一一对应 ——
+## 不能用 CHARACTERS[_speaker.selected]，因为列表是动态的（角色按需出现）。
+var _speaker_ids: Array = []
+## 是否已经把「怎么选对话对象」讲过一遍
 var _speaker_explained := false
+
+
+## 按 game_state.characters_present() 重建「对谁说」列表。
+## 判断只在 game_state 那一处，这里不写任何条件。
+func _rebuild_speaker_list() -> void:
+	if _speaker == null or _game == null:
+		return
+	var present: Array = _game.characters_present()
+	# 列表没变就不动 —— 否则每次 state_changed 都会重置玩家正在做的选择
+	if present == _speaker_ids:
+		return
+	var keep := ""
+	if _speaker.selected >= 0 and _speaker.selected < _speaker_ids.size():
+		keep = str(_speaker_ids[_speaker.selected])
+	_speaker_ids = present
+	_speaker.clear()
+	for cid in present:
+		_speaker.add_item(_char_name(str(cid)))
+	var idx: int = _speaker_ids.find(keep)
+	_speaker.selected = maxi(0, idx)
+	_on_speaker_changed_no_log(int(_speaker.selected))
+
+
+func _char_name(cid: String) -> String:
+	for c in CHARACTERS:
+		if str(c["id"]) == cid:
+			return str(c["name"])
+	return cid
+
+
+func _char_hint(cid: String) -> String:
+	for c in CHARACTERS:
+		if str(c["id"]) == cid:
+			return str(c.get("hint", ""))
+	return ""
 ## 右侧功能栏与底栏。**默认隐藏**，用顶栏的「功能」「对话」按钮开关。
 var _right: Panel
 var _bottom: Panel
@@ -428,8 +467,9 @@ func _build_bottom() -> void:
 	_speaker.position = Vector2(58, 44)
 	_speaker.size = Vector2(104, 22)
 	_speaker.add_theme_font_size_override("font_size", 12)
-	for c in CHARACTERS:
-		_speaker.add_item(str(c["name"]))
+	# 选项不在这里写死 —— 由 _rebuild_speaker_list() 按「当前在场的角色」填。
+	# 角色是按需出现的（game_state.characters_present），
+	# 所以不能无条件把七个人都列出来。
 	_speaker.selected = 0
 	_speaker.item_selected.connect(_on_speaker_changed)
 	p.add_child(_speaker)
@@ -478,7 +518,11 @@ func _on_send() -> void:
 	if t == "":
 		return
 	_input.text = ""
-	var cid := str(CHARACTERS[_speaker.selected]["id"])
+	var cid := ""
+	if _speaker.selected >= 0 and _speaker.selected < _speaker_ids.size():
+		cid = str(_speaker_ids[_speaker.selected])
+	if cid == "":
+		return
 	say_requested.emit(t, cid)
 
 
@@ -616,6 +660,9 @@ func set_input_enabled(on: bool) -> void:
 func refresh() -> void:
 	if _game == null:
 		return
+	# 「对谁说」的名单要跟着角色出现情况变 —— 放在 refresh 里，
+	# 它本来就订阅了 state_changed，不用再接一根线。
+	_rebuild_speaker_list()
 	var season: String = {"spring": "春", "summer": "夏", "autumn": "秋", "winter": "冬"}.get(
 		str(_game.query("season")), "?")
 	var phase: String = {"morning": "晨", "afternoon": "午", "evening": "暮", "night": "夜"}.get(

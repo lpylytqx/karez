@@ -82,14 +82,42 @@ func setup(player: Node2D, game: Node) -> void:
 	_player = player
 	_game = game
 	z_index = 7
-	for cid in Sites.NPC_HOME:
-		_make_person(str(cid))
+	_sync_presence()
 	set_process_unhandled_input(true)
-	# ⚠ 必须接上 state_changed —— 不然建筑拖动后 NPC 不会重摆。
-	# 我第一版写了 resync_positions() 却没接信号，结果建筑动了、居民动了，
-	# 只有 NPC 钉在原地（用户实机发现）。
-	if _game != null and not _game.state_changed.is_connected(resync_positions):
-		_game.state_changed.connect(resync_positions)
+	# ⚠ 必须接上 state_changed —— 不然建筑拖动后 NPC 不会重摆，
+	# 而且「按需出现」也不会随进度生效。
+	# 我第一版写了 resync_positions() 却没接信号，实机表现是
+	# 「建筑动了、居民动了，只有 NPC 钉在原地」（用户发现）。
+	if _game != null and not _game.state_changed.is_connected(_sync_presence):
+		_game.state_changed.connect(_sync_presence)
+
+
+## 按 game_state.characters_present() 增减在场角色，然后重摆位置。
+## 判断只有那一处，这里不写任何条件。
+func _sync_presence() -> void:
+	if _game == null:
+		return
+	var present: Array = _game.characters_present()
+	var have := {}
+	for f in _folk:
+		have[str(f["id"])] = true
+	# 该走的（条件不再满足）
+	for i in range(_folk.size() - 1, -1, -1):
+		var cid := str(_folk[i]["id"])
+		if present.has(cid):
+			continue
+		var sp: Sprite2D = _folk[i]["sprite"]
+		var lb: Label = _folk[i]["label"]
+		if is_instance_valid(sp):
+			sp.queue_free()
+		if is_instance_valid(lb):
+			lb.queue_free()
+		_folk.remove_at(i)
+	# 该来的
+	for cid in Sites.NPC_HOME:
+		if present.has(str(cid)) and not have.has(str(cid)):
+			_make_person(str(cid))
+	resync_positions()
 
 
 ## 建筑被拖走后重摆站位 —— 位置从 game_state 推导，所以这里只要重新读一次。
