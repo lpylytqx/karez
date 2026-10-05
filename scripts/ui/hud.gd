@@ -461,7 +461,11 @@ func _build_bottom() -> void:
 
 	_log = RichTextLabel.new()
 	_log.position = Vector2(4, 2)
-	_log.size = Vector2(632, 40)
+	# ⚠ 高度从 40 收到 30：不是随便收的，是底栏只有 92px，而下面两行的
+	# **主题最小高度**比我原先设的 22 大得多（LineEdit 31 / OptionButton 25）。
+	# 实测（diag_bottom）输入框原本落在 y=336..367，**探出画面 7px**。
+	# 三行按真实最小高度重排：日志 30 + 身份行 25 + 输入行 31 + 间距 6 = 92 ✓
+	_log.size = Vector2(632, 30)
 	_log.bbcode_enabled = true
 	_log.scroll_following = true
 	_log.scroll_active = false
@@ -472,10 +476,10 @@ func _build_bottom() -> void:
 
 	# 「对谁说」——原来只有一个光秃秃的下拉框，玩家以为是在切换自己的人物。
 	# 现在加了标签 + 这个人的一句话身份，切换的意义一眼可见。
-	_make_label(p, Vector2(4, 44), Vector2(52, 22), "对谁说")
+	_make_label(p, Vector2(4, 34), Vector2(52, 22), "对谁说")
 
 	_speaker = OptionButton.new()
-	_speaker.position = Vector2(58, 44)
+	_speaker.position = Vector2(58, 34)
 	_speaker.size = Vector2(104, 22)
 	_speaker.add_theme_font_size_override("font_size", 12)
 	# 选项不在这里写死 —— 由 _rebuild_speaker_list() 按「当前在场的角色」填。
@@ -485,17 +489,18 @@ func _build_bottom() -> void:
 	_speaker.item_selected.connect(_on_speaker_changed)
 	p.add_child(_speaker)
 
-	_who_hint = _make_label(p, Vector2(168, 44), Vector2(468, 22), "")
+	_who_hint = _make_label(p, Vector2(168, 34), Vector2(468, 22), "")
 	_who_hint.modulate = Color(0.78, 0.82, 0.62)
 
 	_input = LineEdit.new()
-	_input.position = Vector2(4, 68)
-	_input.size = Vector2(552, 22)
+	_input.position = Vector2(4, 61)
+	# 高度写 24，但实际会被主题最小值(31)撑到 31 —— 位置按 31 算过才不会再探出画面
+	_input.size = Vector2(552, 24)
 	_input.placeholder_text = "说点什么…（回车发送）"
 	_input.add_theme_font_size_override("font_size", 12)
 	p.add_child(_input)
 
-	var send := _make_button(p, Rect2(560, 68, 76, 22), "发送")
+	var send := _make_button(p, Rect2(560, 61, 76, 24), "发送")
 	send.pressed.connect(_on_send)
 	_input.text_submitted.connect(func(_t): _on_send())
 	# 底栏默认隐藏，这里不能抢焦点 —— 否则方向键会被输入框吃掉，
