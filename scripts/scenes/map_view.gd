@@ -279,9 +279,12 @@ func _place_props() -> void:
 	_add_prop("res://buildings/inn_01.png", 26, 15)           # 64x64 驿馆
 	_add_prop("res://buildings/grape_drying_01.png", 30, 12)  # 48x64 晾房
 
+	# ── 开局就在的建筑：聚落要有基本样子 ──
+	# 马厩不设门槛 —— 哈萨克骑手就站在它旁边，没有马厩他就只能站在空沙漠里
+	# （用户截图里就是这样：他头上是晾房，脚下什么都没有）。
+	_add_prop("res://buildings/stable_01.png", 31, 15.5)     # 48x48 马厩
+
 	# ── 随绿洲等级逐步出现的建筑：绿洲越大，聚落越像样 ──
-	if lv >= 3:
-		_add_prop("res://buildings/stable_01.png", 31, 15.5)  # 48x48 马厩
 	if lv >= 4:
 		_add_prop("res://buildings/watchtower_sand_01.png", 2, 11)
 	if lv >= 5:
