@@ -42,11 +42,11 @@ const SKIN := {
 ##   3. 同一行上相邻两人至少隔 5 格（80px），名牌宽 66px 才不会互相压住。
 const SPOT := {
 	"lao_kanjiang":      Vector2(23.0, 13.4),   # 竖井链旁 —— 他守着井，本来就不住村里
-	"muqam_yiren":       Vector2(21.5, 16.4),   # 巴扎摊位前 (19,15.5)(21,15.5)
-	"hasake_qishou":     Vector2(31.5, 16.4),   # 马厩前（31,15.5）
-	"hanshang_zhanggui": Vector2(26.5, 16.4),   # 驿馆前（26,15）
-	"chuniang":          Vector2(16.5, 16.4),   # 营火前（17,15.5）
-	"shenmi_lvren":      Vector2(11.5, 16.4),   # 涝坝前（12,15）
+	"muqam_yiren":       Vector2(21.5, 16.4),   # 两座巴扎摊位之间 (19,15.5)(21,15.5)
+	"hasake_qishou":     Vector2(33.0, 16.4),   # 马厩右缘（马厩 29.5~32.5）
+	"hanshang_zhanggui": Vector2(27.0, 16.4),   # 驿馆前（驿馆 24~28）
+	"chuniang":          Vector2(15.0, 16.4),   # 营火左缘（营火 16~18）
+	"shenmi_lvren":      Vector2(9.0, 16.4),    # 涝坝左缘（涝坝 10~14）
 	"mafei_toumu":       Vector2(35.0, 6.0),    # 沙漠（村里不该有他）
 }
 
@@ -63,6 +63,19 @@ const FACE_ROW := {"lao_kanjiang": 0, "muqam_yiren": 0, "hasake_qishou": 1,
 
 const TINT := {"mafei_toumu": Color(1.0, 0.72, 0.66)}
 
+## 名牌的两档外观。
+## 平时「轻」：小字号 + 淡底衬 —— 五块牌子连在一起会成一条深色带，把地图压住
+## （用户截图里就是这个观感）。
+## 靠近/悬停时「亮」：字号放大、底衬加深、变绿并带上操作提示。
+const FONT_IDLE := 10
+const FONT_HOT := 12
+const BG_IDLE := 0.28
+const BG_HOT := 0.78
+const W_IDLE := 62.0
+const W_HOT := 78.0
+const H_LBL := 18.0
+
+## 平时是暖金（可读、不抢眼），靠近/悬停变绿提示「可以交互」
 const NAME_COLOR := Color(1.0, 0.92, 0.62)
 const NEAR_COLOR := Color(0.55, 1.0, 0.60)
 
@@ -104,15 +117,15 @@ func _make_person(cid: String) -> void:
 	# （第一版实机截图里「商队掌柜」只剩「掌柜」两个字）。
 	var lbl := Label.new()
 	lbl.text = str(_display(cid))
-	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_font_size_override("font_size", FONT_IDLE)
 	lbl.add_theme_color_override("font_color", NAME_COLOR)
 	lbl.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.05))
 	lbl.add_theme_constant_override("outline_size", 4)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.10, 0.08, 0.06, 0.62)
+	sb.bg_color = Color(0.10, 0.08, 0.06, BG_IDLE)
 	sb.set_corner_radius_all(3)
-	sb.content_margin_left = 4.0
-	sb.content_margin_right = 4.0
+	sb.content_margin_left = 3.0
+	sb.content_margin_right = 3.0
 	lbl.add_theme_stylebox_override("normal", sb)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -128,8 +141,8 @@ func _make_person(cid: String) -> void:
 	# 只设 size 的话，Godot 会按文字宽度把它收回最小尺寸，
 	# 结果名牌宽度随名字长短变化、位置也跟着偏 ——
 	# 实机截图里「商队掌柜」因此只显示出「掌柜」两个字。
-	lbl.custom_minimum_size = Vector2(66, 20)
-	lbl.size = Vector2(66, 20)
+	lbl.custom_minimum_size = Vector2(W_IDLE, H_LBL)
+	lbl.size = Vector2(W_IDLE, H_LBL)
 	# ⚠ y 要夹在顶栏之下。顶栏是 0..78 且常驻，名字牌跑到它后面就被整个盖住 ——
 	# 马匪头目站在东北沙漠 (35,6)，名牌原本落在 y=62，实机截图里被顶栏切掉一半。
 	var ly: float = maxf(TOP_SAFE_Y, cell.y + float(LABEL_DY.get(cid, -34.0)))
@@ -217,6 +230,17 @@ func _process(_delta: float) -> void:
 	for f in _folk:
 		var cid := str(f["id"])
 		var lbl: Label = f["label"]
+		var hot := (cid == near or cid == hov)
+		# 两档外观。平时小字号 + 淡底衬，靠近才放大变绿 ——
+		# 五块牌子都用满字号加深底衬时，会连成一条横贯地图的深色带。
+		lbl.add_theme_font_size_override("font_size", FONT_HOT if hot else FONT_IDLE)
+		var w := W_HOT if hot else W_IDLE
+		lbl.custom_minimum_size = Vector2(w, H_LBL)
+		lbl.size = Vector2(w, H_LBL)
+		lbl.position.x = Vector2(f["base"]).x - w * 0.5
+		var sb: StyleBoxFlat = lbl.get_theme_stylebox("normal")
+		if sb is StyleBoxFlat:
+			sb.bg_color = Color(0.10, 0.08, 0.06, BG_HOT if hot else BG_IDLE)
 		if cid == near:
 			lbl.text = "%s ◂E" % _display(cid)
 			lbl.add_theme_color_override("font_color", NEAR_COLOR)
