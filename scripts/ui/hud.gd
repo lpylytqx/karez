@@ -376,6 +376,17 @@ func show_bottom_panel() -> void:
 	_on_speaker_changed_no_log(int(_speaker.selected))
 
 
+## 从地图上点了某个人过来。把下拉框切到那个人并说明一句 ——
+## 地图和下拉框是同一个入口的两种走法，必须互相同步，否则玩家会以为点了没反应。
+func focus_speaker(cid: String) -> void:
+	for i in range(CHARACTERS.size()):
+		if str(CHARACTERS[i]["id"]) == cid:
+			if _speaker != null and _speaker.selected != i:
+				_speaker.selected = i
+			_on_speaker_changed(i)
+			return
+
+
 ## 只更新提示，不写日志 —— 开局时日志要留给教程
 func _on_speaker_changed_no_log(idx: int) -> void:
 	if idx < 0 or idx >= CHARACTERS.size():
@@ -391,13 +402,16 @@ func _build_bottom() -> void:
 	# 84 高 = 日志 48（正好 3 行）+ 输入行 31 + 边距。
 	# 日志给 40 会只显示 2.5 行 —— 最上面那行被切掉半截，实机截图里很难看。
 	# **默认隐藏**，用顶栏的「对话」按钮开关。
-	_bottom = _make_panel(Rect2(0, 252, 640, 108), Color(0.11, 0.085, 0.06, 0.95))
+	# 92 高 = 日志 40（2.5 行）+ 对谁说行 22 + 输入行 22 + 边距。
+	# 不能再高了：底栏从 y=268 起，聚落那一排建筑（y 208..272）会被切掉下半截，
+	# 站在聚落里的人也跟着看不见（第一版 108 高时就是这样）。
+	_bottom = _make_panel(Rect2(0, 268, 640, 92), Color(0.11, 0.085, 0.06, 0.95))
 	_bottom.visible = false
 	var p: Panel = _bottom
 
 	_log = RichTextLabel.new()
 	_log.position = Vector2(4, 2)
-	_log.size = Vector2(632, 48)
+	_log.size = Vector2(632, 40)
 	_log.bbcode_enabled = true
 	_log.scroll_following = true
 	_log.scroll_active = false
@@ -408,11 +422,11 @@ func _build_bottom() -> void:
 
 	# 「对谁说」——原来只有一个光秃秃的下拉框，玩家以为是在切换自己的人物。
 	# 现在加了标签 + 这个人的一句话身份，切换的意义一眼可见。
-	_make_label(p, Vector2(4, 52), Vector2(56, 24), "对谁说")
+	_make_label(p, Vector2(4, 44), Vector2(52, 22), "对谁说")
 
 	_speaker = OptionButton.new()
-	_speaker.position = Vector2(62, 52)
-	_speaker.size = Vector2(108, 24)
+	_speaker.position = Vector2(58, 44)
+	_speaker.size = Vector2(104, 22)
 	_speaker.add_theme_font_size_override("font_size", 12)
 	for c in CHARACTERS:
 		_speaker.add_item(str(c["name"]))
@@ -420,17 +434,17 @@ func _build_bottom() -> void:
 	_speaker.item_selected.connect(_on_speaker_changed)
 	p.add_child(_speaker)
 
-	_who_hint = _make_label(p, Vector2(176, 52), Vector2(460, 24), "")
+	_who_hint = _make_label(p, Vector2(168, 44), Vector2(468, 22), "")
 	_who_hint.modulate = Color(0.78, 0.82, 0.62)
 
 	_input = LineEdit.new()
-	_input.position = Vector2(4, 80)
-	_input.size = Vector2(552, 24)
+	_input.position = Vector2(4, 68)
+	_input.size = Vector2(552, 22)
 	_input.placeholder_text = "说点什么…（回车发送）"
 	_input.add_theme_font_size_override("font_size", 12)
 	p.add_child(_input)
 
-	var send := _make_button(p, Rect2(560, 80, 76, 24), "发送")
+	var send := _make_button(p, Rect2(560, 68, 76, 22), "发送")
 	send.pressed.connect(_on_send)
 	_input.text_submitted.connect(func(_t): _on_send())
 	# 底栏默认隐藏，这里不能抢焦点 —— 否则方向键会被输入框吃掉，

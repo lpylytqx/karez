@@ -16,6 +16,7 @@ var _game: Node
 var _events: Node
 var _map: Node2D
 var _villagers: Node2D
+var _townfolk: Node2D
 var _player: CharacterBody2D
 var _hud: Control
 
@@ -40,6 +41,7 @@ func _ready() -> void:
 	_events = $EventSystem
 	_map = $MapView
 	_villagers = $Villagers
+	_townfolk = $Townfolk
 	_player = $Player
 	_hud = $HUDLayer/HUD
 
@@ -50,6 +52,9 @@ func _ready() -> void:
 	_map.setup(_game)
 	# 居民要在状态层之后初始化：它靠 state_changed 信号跟随分工变化
 	_villagers.setup(_game, _map)
+	# 地图上的七个角色：点他 / 走近按 E，都会切到底栏并用那个人开始对话
+	_townfolk.setup(_player)
+	_townfolk.talk_requested.connect(_on_talk_to)
 	_hud.setup(_game, _events)
 
 	_hud.dig_requested.connect(_on_dig)
@@ -87,6 +92,14 @@ func _process(_delta: float) -> void:
 # ---------------------------------------------------------------------------
 # AI 服务连通性
 # ---------------------------------------------------------------------------
+
+## 地图上点了某个人 / 走近按了 E —— 切到那个人并打开对话栏。
+## 下拉框和地图是同一个入口的两种走法，所以要互相同步：
+## 在地图上点了厨娘，底栏的「对谁说」也要跟着变成厨娘。
+func _on_talk_to(cid: String) -> void:
+	_hud.focus_speaker(cid)
+	_hud.show_bottom_panel()
+
 
 func _probe_ai() -> void:
 	var http := HTTPRequest.new()
