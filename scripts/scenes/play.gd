@@ -17,6 +17,18 @@ var _events: Node
 var _map: Node2D
 var _villagers: Node2D
 var _townfolk: Node2D
+## 昼夜光照。CanvasModulate 只影响同一个 Canvas 里的东西 ——
+## HUD 挂在独立的 CanvasLayer 上，所以界面**不会**跟着变暗。
+var _daylight: CanvasModulate
+
+## 四个时段的光色。数值偏克制 —— 目的是「让时段有区别」，
+## 不是做写实光照；像素画压太暗会糊成一团，看不出画的是什么。
+const PHASE_LIGHT := {
+	"morning":   Color(1.00, 0.97, 0.91),   # 晨：清冷里带一点暖
+	"afternoon": Color(1.00, 1.00, 1.00),   # 午：中性，全亮
+	"evening":   Color(1.00, 0.83, 0.68),   # 暮：暖橙，斜阳
+	"night":     Color(0.56, 0.61, 0.88),   # 夜：冷蓝，压暗但不压死
+}
 var _player: CharacterBody2D
 var _hud: Control
 
@@ -43,6 +55,7 @@ func _ready() -> void:
 	_villagers = $Villagers
 	_townfolk = $Townfolk
 	_player = $Player
+	_daylight = $DayLight
 	_hud = $HUDLayer/HUD
 
 	# 事件系统要能写进存档，先互相认领
@@ -56,6 +69,11 @@ func _ready() -> void:
 	_townfolk.setup(_player, _game)
 	_townfolk.talk_requested.connect(_on_talk_to)
 	_hud.setup(_game, _events)
+
+	# 昼夜光照跟着时段走
+	if not _game.state_changed.is_connected(_apply_phase_light):
+		_game.state_changed.connect(_apply_phase_light)
+	_apply_phase_light()
 
 	_hud.dig_requested.connect(_on_dig)
 	_hud.build_requested.connect(_on_build)
@@ -99,6 +117,21 @@ func _process(_delta: float) -> void:
 func _on_talk_to(cid: String) -> void:
 	_hud.focus_speaker(cid)
 	_hud.show_bottom_panel()
+
+
+## 按当前时段给整张地图上光。CanvasModulate 只作用于世界这一层，
+## HUD 在独立 CanvasLayer 上，所以界面不受影响。
+##
+## 为什么值得做：游戏本来就有 晨/午/暮/夜 四时段，但改时段画面毫无变化 ——
+## 「过了半天」这件事玩家感觉不到。上光之后，推进时段本身就有了反馈。
+func _apply_phase_light() -> void:
+	if _daylight == null or _game == null:
+		return
+	var ph := str(_game.query("calendar.phase"))
+	var target: Color = PHASE_LIGHT.get(ph, Color.WHITE)
+	# 用补间而不是直接赋值：时段切换是「天慢慢暗下来」，不是啪一下关灯。
+	var tw := create_tween()
+	tw.tween_property(_daylight, "color", target, 0.6)
 
 
 func _probe_ai() -> void:

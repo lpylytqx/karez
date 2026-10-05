@@ -30,6 +30,8 @@ script = ExtResource("8_townfolk")
 [node name="Player" parent="." instance=ExtResource("5_player")]
 position = Vector2(320, 248)
 
+[node name="DayLight" type="CanvasModulate" parent="."]
+
 [node name="HUDLayer" type="CanvasLayer" parent="."]
 
 [node name="HUD" type="Control" parent="HUDLayer"]
