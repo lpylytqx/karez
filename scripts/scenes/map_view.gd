@@ -235,7 +235,7 @@ func _build_terrain() -> void:
 	for y in range(ROWS):
 		for x in range(COLS):
 			var key: String = str(keys[y][x])
-			var paths: Array = TERRAIN_TEX[key]
+			var paths: Array = _terrain_set()[key]
 			var sp := Sprite2D.new()
 			sp.texture = _get_tex(str(paths[_rng.randi() % paths.size()]))
 			sp.centered = false
@@ -248,6 +248,30 @@ func _build_terrain() -> void:
 ## desert_light_* 自带固定斑块、Tile 又不能旋转，拼出来是错位的方块带）。
 ## 保留函数是留给以后真做定向过渡时用；若确定不做，可连同
 ## TERRAIN_TEX 里的 "edge" 一起删掉。
+## 当前季节。取不到就当春天（比崩掉好，也便于单独跑地图调试）。
+func _season() -> String:
+	if _game == null:
+		return "spring"
+	return str(_game.query("calendar.season"))
+
+
+## 冬天的地表整体换成雪。换季不是加滤镜，是**真的换贴图** ——
+## 这样「到冬天了」是看得见的，而不是「画面偏蓝了一点」。
+## 雪地贴图由 make_ground 那套同样的思路生成（去色 + 提亮 + 压向冷白），
+## 纹理走向与其余季节一致，换季不会像换了一套美术。
+const WINTER_TERRAIN := {
+	"desert": ["res://tiles/terrain/snow_desert_01.png", "res://tiles/terrain/snow_desert_02.png",
+		"res://tiles/terrain/snow_desert_03.png", "res://tiles/terrain/snow_ripple_01.png"],
+	"sparse": ["res://tiles/terrain/snow_sparse_01.png", "res://tiles/terrain/snow_sparse_02.png"],
+	"medium": ["res://tiles/terrain/snow_medium_01.png", "res://tiles/terrain/snow_medium_02.png"],
+	"lush":   ["res://tiles/terrain/snow_lush_01.png", "res://tiles/terrain/snow_lush_02.png"],
+}
+
+
+func _terrain_set() -> Dictionary:
+	return WINTER_TERRAIN if _season() == "winter" else TERRAIN_TEX
+
+
 func _touches_land(keys: Array, x: int, y: int) -> bool:
 	for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		var nx := x + int(off.x)
@@ -508,6 +532,27 @@ func _place_props() -> void:
 		"res://tiles/terrain/tree_autumn_01.png",
 		"res://tiles/terrain/tree_autumn_02.png",
 	]
+	# ── 四季特色之一：秋天换叶 ──
+	# 素材里本来就有 tree_autumn_01/02（黄叶）。秋天把树池整个换成它，
+	# 画面就从「绿洲」变成「金秋」—— 这比调色直读得多，
+	# 因为玩家看的是**树变黄了**，不是**整体偏黄了**。
+	if _season() == "autumn":
+		big_trees = [
+			"res://tiles/terrain/tree_autumn_01.png",
+			"res://tiles/terrain/tree_autumn_02.png",
+			"res://tiles/nature/tree_euphrates_01.png",   # 胡杨本来就是金黄，留着
+			"res://tiles/nature/tree_euphrates_02.png",
+		]
+		small_trees = [
+			"res://tiles/terrain/tree_autumn_01.png",
+			"res://tiles/terrain/tree_autumn_02.png",
+			"res://tiles/nature/tree_poplar_01.png",      # 白杨秋天也发黄，可留
+		]
+	# 冬天：树只剩枯枝 —— 素材里没有枯树，所以冬天不摆大树，
+	# 让小树池只留最小的两棵。空一些正是冬天的样子。
+	elif _season() == "winter":
+		big_trees = []
+		small_trees = ["res://tiles/nature/tree_small_01.png"]
 	var shrubs := [
 		"res://tiles/nature/bush_01.png",
 		"res://tiles/nature/flower_01.png",
@@ -541,8 +586,12 @@ func _place_props() -> void:
 		if too_close:
 			continue
 		placed_at.append(pos)
-		if _rng.randf() < 0.45:
-			_add_ground(str(small_trees[_rng.randi() % small_trees.size()]), ax, ay)
+		# ⚠ 必须先判空再取模。冬天 big_trees 是空数组（没有枯树素材，索性不摆），
+		# 而 `x % 0` 会抛 Modulo by zero —— 这个错被 capture 的 stderr 抓到过。
+		# 冬天就让小树承担全部，一棵大树都不摆，空一些正是冬天的样子。
+		if _rng.randf() < 0.45 or big_trees.is_empty():
+			if not small_trees.is_empty():
+				_add_ground(str(small_trees[_rng.randi() % small_trees.size()]), ax, ay)
 		else:
 			_add_tree(str(big_trees[_rng.randi() % big_trees.size()]), ax, ay)
 		placed += 1
