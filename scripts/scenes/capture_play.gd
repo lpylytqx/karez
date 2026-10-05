@@ -67,6 +67,19 @@ func _process(_delta: float) -> void:
 				_frames = 0
 		7:
 			if _frames >= 15:
+				# 再把两个面板都关掉，验证「面板全隐」时地图是否整片可见
+				var hud := _play.get_node("HUDLayer/HUD")
+				hud._toggle_right_panel()
+				hud._toggle_bottom_panel()
+				_stage = 8
+				_frames = 0
+		8:
+			if _frames >= 20:
+				_shot("shot_E_面板全隐.png")
+				_stage = 9
+				_frames = 0
+		9:
+			if _frames >= 15:
 				print("CAPTURE done")
 				get_tree().quit()
 

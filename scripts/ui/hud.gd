@@ -47,7 +47,11 @@ var _speaker: OptionButton
 var _dig_btn: Button
 var _dig_hint: Label
 var _conn: Label
-var _info: Label
+## 顶栏第三行：当前该做什么。把「缺什么」翻译成「点哪里」，并显示昨日产出。
+var _hint: Label
+## 右侧功能栏与底栏。**默认隐藏**，用顶栏的「功能」「对话」按钮开关。
+var _right: Panel
+var _bottom: Panel
 
 var _popup: Control
 var _popup_title: Label
@@ -136,114 +140,128 @@ func _make_button(parent: Node, rect: Rect2, txt: String) -> Button:
 
 func _build_top() -> void:
 	# ⚠ Godot 会按字体与主题边距强制控件最小高度，写 13 也会被撑到 23。
-	# 所有布局都按「Label≈23 / Button≈24 / LineEdit≈31」实测值排，
-	# 否则相邻控件会重叠 —— 实机截图里三个按钮就这么连成过一块深色方块。
+	# 所有布局都按「Label≈23 / Button≈24 / LineEdit≈31」实测值排。
 	#
-	# 顶栏两行：第一行是时间与进度，第二行是资源。
-	var p := _make_panel(Rect2(0, 0, 640, 52), Color(0.13, 0.10, 0.07, 0.90))
-	_top = _make_label(p, Vector2(4, 1), Vector2(440, 23), "第 1 天")
+	# 顶栏三行，**常驻不隐藏** —— 它是玩家唯一的全局视野：
+	#   row1  天数/季节/坎儿井/分工概览 + 两个面板开关
+	#   row2  资源
+	#   row3  当前该做什么（随状态变化，把「缺什么」翻译成「点哪里」）
+	# 右侧栏与底栏默认隐藏，地图整片留给玩家。
+	var p := _make_panel(Rect2(0, 0, 640, 78), Color(0.13, 0.10, 0.07, 0.90))
+	_top = _make_label(p, Vector2(4, 1), Vector2(398, 23), "第 1 天")
 
-	_speaker = OptionButton.new()
-	_speaker.position = Vector2(450, 1)
-	_speaker.size = Vector2(112, 24)
-	_speaker.add_theme_font_size_override("font_size", 12)
-	for c in CHARACTERS:
-		_speaker.add_item(str(c["name"]))
-	_speaker.selected = 0
-	p.add_child(_speaker)
+	var bmenu := _make_button(p, Rect2(404, 1, 56, 24), "功能")
+	bmenu.pressed.connect(func(): _toggle_right_panel())
+	var blog := _make_button(p, Rect2(462, 1, 56, 24), "对话")
+	blog.pressed.connect(func(): _toggle_bottom_panel())
+	_conn = _make_label(p, Vector2(520, 1), Vector2(116, 23), "AI 探测中")
 
-	_conn = _make_label(p, Vector2(566, 1), Vector2(72, 23), "AI 探测中")
 	_res = _make_label(p, Vector2(4, 27), Vector2(632, 23), "")
+	_hint = _make_label(p, Vector2(4, 53), Vector2(632, 23), "")
+	_hint.modulate = Color(1.0, 0.9, 0.55)
 
 
 func _build_right() -> void:
-	# 高度按实测最小尺寸累加：单行标签 23、双行标签 46、按钮 24。
-	# 面板 244 高，内容排到 226 —— 早先给双行标签 32 高，第二行会被下沿切掉。
-	var p := _make_panel(Rect2(536, 56, 104, 244), Color(0.13, 0.10, 0.07, 0.85))
+	# 右侧功能栏。**默认隐藏**，用顶栏的「功能」按钮开关 ——
+	# 平时把整张地图留给玩家，需要时再拉出来，这样才像游戏而不是调试工具。
+	#
+	# 宽度给到 208：分工/建造这些页要在一行里放「名称 + − + ＋」，
+	# 104 宽的窄栏放不下 —— 第一版就是因此把面板浮在地图正中间，挡住了半张图。
+	_right = _make_panel(Rect2(432, 82, 208, 206), Color(0.13, 0.10, 0.07, 0.93))
+	_right.visible = false
+	var p: Panel = _right
 
-	_dig_btn = _make_button(p, Rect2(4, 2, 96, 24), "挖竖井")
+	_dig_btn = _make_button(p, Rect2(4, 2, 200, 24), "挖竖井")
 	_dig_btn.pressed.connect(func(): dig_requested.emit())
 
-	_dig_hint = _make_label(p, Vector2(4, 28), Vector2(96, 46), "")
+	_dig_hint = _make_label(p, Vector2(4, 28), Vector2(200, 46), "")
 	_dig_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dig_hint.modulate = Color(0.85, 0.78, 0.60)
 
 	# 每 26px 一个按钮（24 高 + 2 间隙）
-	var bbuild := _make_button(p, Rect2(4, 76, 96, 24), "建造 ▾")
+	var bbuild := _make_button(p, Rect2(4, 76, 200, 24), "建造 ▾")
 	bbuild.pressed.connect(_on_build_pressed)
 
-	var bjob := _make_button(p, Rect2(4, 102, 96, 24), "分工 ▾")
+	var bjob := _make_button(p, Rect2(4, 102, 200, 24), "分工 ▾")
 	bjob.pressed.connect(_on_job_pressed)
 
-	var bnext := _make_button(p, Rect2(4, 128, 96, 24), "推进时段")
+	var bnext := _make_button(p, Rect2(4, 128, 200, 24), "推进时段")
 	bnext.pressed.connect(func(): next_phase_requested.emit())
 
-	var bev := _make_button(p, Rect2(4, 154, 96, 24), "查看事件")
+	var bev := _make_button(p, Rect2(4, 154, 200, 24), "查看事件")
 	bev.pressed.connect(func(): event_requested.emit())
 
-	var bsave := _make_button(p, Rect2(4, 180, 46, 24), "存档")
+	var bsave := _make_button(p, Rect2(4, 180, 98, 24), "存档")
 	bsave.pressed.connect(func(): save_requested.emit())
-	var bload := _make_button(p, Rect2(54, 180, 46, 24), "读档")
+	var bload := _make_button(p, Rect2(106, 180, 98, 24), "读档")
 	bload.pressed.connect(func(): load_requested.emit())
-
-	# 底部这块显示实时信息：今天产出了多少
-	_info = _make_label(p, Vector2(4, 208), Vector2(96, 36), "")
-	_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_info.modulate = Color(0.72, 0.66, 0.55)
 
 	_build_panel()
 	_build_job_panel()
 
 
-## 分工面板 —— S3 的核心界面。没有它，玩家碰不到岗位系统。
+## 分工页 —— S3 的核心界面。它铺在右侧功能栏的位置上，**不浮在地图中间**：
+## 第一版把它做成浮层面板，正好挡住半张地图（用户实机反馈过）。
 func _build_job_panel() -> void:
 	_job_panel = Panel.new()
-	_job_panel.position = Vector2(300, 40)
-	_job_panel.size = Vector2(228, 232)
-	_job_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.97)))
+	_job_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_job_panel.position = Vector2.ZERO
+	_job_panel.size = _right.size
+	_job_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.99)))
 	_job_panel.visible = false
-	add_child(_job_panel)
+	_right.add_child(_job_panel)
 
-	_make_label(_job_panel, Vector2(6, 2), Vector2(216, 23), "── 分工（每个人占一个岗位）──")
+	_make_label(_job_panel, Vector2(6, 2), Vector2(196, 23), "── 分工（每人占一个岗位）──")
 
-	# 每行：岗位名 + 人数 + ─ / ＋ 两个按钮
+	# 每行：岗位名 + 人数 + − / ＋ 两个按钮。
+	# 面板 206 高：标题 23 + 7 行 × 22 + 底部 23 = 200，放得下。
 	var y := 26.0
 	for jid in ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]:
-		_job_rows[jid] = _make_label(_job_panel, Vector2(6, y), Vector2(120, 23), "")
-		var minus := _make_button(_job_panel, Rect2(128, y + 1, 26, 22), "−")
+		_job_rows[jid] = _make_label(_job_panel, Vector2(6, y), Vector2(120, 22), "")
+		var minus := _make_button(_job_panel, Rect2(130, y, 32, 22), "−")
 		minus.pressed.connect(_on_job_delta.bind(str(jid), -1))
-		var plus := _make_button(_job_panel, Rect2(156, y + 1, 26, 22), "＋")
+		var plus := _make_button(_job_panel, Rect2(166, y, 32, 22), "＋")
 		plus.pressed.connect(_on_job_delta.bind(str(jid), 1))
-		y += 25.0
+		y += 22.0
 
-	_job_free = _make_label(_job_panel, Vector2(6, y + 2), Vector2(216, 23), "")
+	var back := _make_button(_job_panel, Rect2(4, y + 2, 60, 22), "返回")
+	back.pressed.connect(_close_pages)
+	_job_free = _make_label(_job_panel, Vector2(68, y + 2), Vector2(134, 22), "")
 	_job_free.modulate = Color(1.0, 0.85, 0.45)
 
 
 func _on_job_pressed() -> void:
-	_toggle_job_panel()
-
-
-func _toggle_job_panel() -> void:
-	if _job_panel == null:
-		return
-	_job_panel.visible = not _job_panel.visible
-	if _job_panel.visible:
+	if _right != null and not _right.visible:
+		_right.visible = true
+	if _job_panel != null:
+		_build_menu.visible = false
+		_job_panel.visible = true
 		_refresh_jobs()
 
 
-## 供场景在开局时自动弹出 —— 用户实机反馈「不知道怎么派人」，
-## 说明这个面板藏得太深：按钮在那儿，但没有任何东西提示必须点它。
+## 关掉所有子页，回到「行动」主列表。子页铺在右侧栏上，所以必须能退回来。
+func _close_pages() -> void:
+	if _job_panel != null:
+		_job_panel.visible = false
+	if _build_menu != null:
+		_build_menu.visible = false
+
+
+## 供场景在开局时自动弹出 —— 用户实机反馈「不知道怎么派人」。
+## 现在它会连同右侧功能栏一起打开，而不是浮在地图上。
 func open_job_panel() -> void:
-	if _job_panel != null and not _job_panel.visible:
-		_toggle_job_panel()
+	if _right != null:
+		_right.visible = true
+	_on_job_pressed()
 
 
 func _on_job_delta(jid: String, delta: int) -> void:
 	if _game == null:
 		return
 	if not _game.assign_job(jid, delta):
-		append_log("[color=#ffd479]没有空闲人手了 —— 先从别的岗位撤一个人。[/color]")
+		_job_free.text = "没人了 — 先从别的岗位撤"
+		_job_free.modulate = Color(1.0, 0.45, 0.4)
+		return
 	_refresh_jobs()
 
 
@@ -272,20 +290,20 @@ func _job_cn(jid: String) -> String:
 		"craft": "做工", "farm": "耕作", "guard": "守卫", "idle": "待命"}.get(jid, jid)
 
 
+## 建造页 —— 同样铺在右侧功能栏上，不浮在地图中间。
 func _build_panel() -> void:
 	# 用内嵌 Panel 而不是 PopupMenu：Godot 4 里 PopupMenu 是 Window，
 	# 挂进 Control 后会在视口里渲染出一块深色残留（实机截图确认过）。
-	# 内嵌面板还能顺便把造价写在按钮上，比原生菜单更有用。
 	_build_menu = Panel.new()
-	_build_menu.position = Vector2(420, 60)
-	_build_menu.size = Vector2(112, 116)
-	_build_menu.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.97)))
+	_build_menu.position = Vector2.ZERO
+	_build_menu.size = _right.size
+	_build_menu.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.99)))
 	_build_menu.visible = false
-	add_child(_build_menu)
+	_right.add_child(_build_menu)
 
-	_make_label(_build_menu, Vector2(6, 2), Vector2(100, 13), "── 选择建筑 ──")
+	_make_label(_build_menu, Vector2(6, 2), Vector2(196, 23), "── 选择建筑 ──")
 
-	var y := 18.0
+	var y := 28.0
 	for b in BUILDINGS:
 		var info: Dictionary = _game.build_info(str(b["id"])) if _game != null else {}
 		var cost := ""
@@ -294,25 +312,60 @@ func _build_panel() -> void:
 			for k in info.get("materials", {}):
 				parts.append("%s%d" % [_mat_cn(str(k)), int(info["materials"][k])])
 			cost = " " + " ".join(parts)
-		var btn := _make_button(_build_menu, Rect2(5, y, 102, 18),
+		var btn := _make_button(_build_menu, Rect2(4, y, 200, 24),
 			"%s%s" % [str(b["name"]), cost])
 		btn.pressed.connect(func():
 			build_requested.emit(str(b["id"]))
 			_build_menu.visible = false
 		)
-		y += 21.0
+		y += 26.0
+
+	var back := _make_button(_build_menu, Rect2(4, y + 2, 60, 24), "返回")
+	back.pressed.connect(_close_pages)
 
 
 func _on_build_pressed() -> void:
+	if _right != null and not _right.visible:
+		_right.visible = true
 	if _build_menu != null:
-		_build_menu.visible = not _build_menu.visible
+		_build_menu.visible = true
+	if _job_panel != null:
+		_job_panel.visible = false
+
+
+## 右侧功能栏的开关。默认隐藏 —— 平时整张地图留给玩家。
+func _toggle_right_panel() -> void:
+	if _right == null:
+		return
+	_right.visible = not _right.visible
+	if _right.visible:
+		_close_pages()
+	else:
+		_close_pages()
+
+
+## 底栏（日志 + 对话输入）的开关。默认隐藏。
+func _toggle_bottom_panel() -> void:
+	if _bottom == null:
+		return
+	_bottom.visible = not _bottom.visible
+	if _bottom.visible and _input != null:
+		_input.grab_focus()
+
+
+## 供场景在开局时把底栏打开（教程在里面）。
+func show_bottom_panel() -> void:
+	if _bottom != null:
+		_bottom.visible = true
 
 
 func _build_bottom() -> void:
-	# 84 高 = 日志 48（正好 3 行）+ 输入行 31 + 边距。资源行在顶栏第二行。
+	# 84 高 = 日志 48（正好 3 行）+ 输入行 31 + 边距。
 	# 日志给 40 会只显示 2.5 行 —— 最上面那行被切掉半截，实机截图里很难看。
-	# 48 是 3×16 的整数倍，不出现半行。
-	var p := _make_panel(Rect2(0, 276, 640, 84), Color(0.11, 0.085, 0.06, 0.94))
+	# **默认隐藏**，用顶栏的「对话」按钮开关。
+	_bottom = _make_panel(Rect2(0, 284, 640, 76), Color(0.11, 0.085, 0.06, 0.95))
+	_bottom.visible = false
+	var p: Panel = _bottom
 
 	_log = RichTextLabel.new()
 	_log.position = Vector2(4, 2)
@@ -325,18 +378,29 @@ func _build_bottom() -> void:
 	_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(_log)
 
+	# 对话对象选框挪到底栏 —— 它本来就属于「对话」这件事，
+	# 放顶栏会跟面板开关抢位置
+	_speaker = OptionButton.new()
+	_speaker.position = Vector2(4, 46)
+	_speaker.size = Vector2(92, 24)
+	_speaker.add_theme_font_size_override("font_size", 12)
+	for c in CHARACTERS:
+		_speaker.add_item(str(c["name"]))
+	_speaker.selected = 0
+	p.add_child(_speaker)
+
 	_input = LineEdit.new()
-	_input.position = Vector2(4, 52)
-	_input.size = Vector2(556, 31)
+	_input.position = Vector2(100, 46)
+	_input.size = Vector2(460, 24)
 	_input.placeholder_text = "说点什么…（回车）"
 	_input.add_theme_font_size_override("font_size", 12)
 	p.add_child(_input)
 
-	var send := _make_button(p, Rect2(564, 54, 68, 26), "发送")
+	var send := _make_button(p, Rect2(564, 46, 68, 24), "发送")
 	send.pressed.connect(_on_send)
 	_input.text_submitted.connect(func(_t): _on_send())
-
-	_input.grab_focus()
+	# 底栏默认隐藏，这里不能抢焦点 —— 否则方向键会被输入框吃掉，
+	# 玩家开局就发现角色走不动。点「对话」按钮时才 grab_focus。
 
 
 func _on_send() -> void:
@@ -533,18 +597,34 @@ func refresh() -> void:
 	]
 	_res.modulate = Color(1.0, 0.68, 0.6) if (shortage or food_days < 2.0) else Color(1, 1, 1)
 
-	# 右栏底部：显示「昨天产出了什么」+ 田块进度。
+	# 右侧栏底部：显示「昨天产出了什么」+ 田块进度。
 	# 这是玩家判断分工是否合理的唯一依据 —— 没有它，岗位分配就是盲猜。
 	var sec := int(_game.query("karez.sections"))
 	var g: Dictionary = _game.last_gain()
 	var plots_n: int = _game.farmland_plots()
-	if g.is_empty():
-		_info.text = "田 %d 块\n井 %d/6" % [plots_n, sec]
+	var daily := ""
+	if not g.is_empty():
+		daily = "　昨产 木%.0f 土%.0f 粮%.0f" % [
+			float(g.get("wood", 0.0)), float(g.get("earth", 0.0)), float(g.get("food", 0.0))]
+
+	# 顶栏第三行是玩家唯一常驻的「该干什么」提示。
+	# 缺料时直接给出处（「点功能派人取土」），而不是只报「缺土」——
+	# 只说缺什么、不说去哪补，玩家只能干瞪眼（用户实机反馈过）。
+	var tip := ""
+	var info_d: Dictionary = _game.dig_info()
+	if not _game.construction_idle():
+		tip = "施工中：%s 剩 %d 天（治水 %d 人）" % [
+			str(_game.state["construction"].get("display", "")),
+			int(_game.state["construction"].get("days_left", 0)),
+			int(_game.job_count("water"))]
+		if int(_game.job_count("water")) <= 0:
+			tip += "　【没人治水，工期不会走】"
+	elif bool(info_d["ok"]):
+		tip = "可开工：%s（工期 %d 天）—— 按「功能」开挖" % [
+			str(info_d["display"]), int(info_d["days"])]
 	else:
-		_info.text = "田 %d 块 井 %d/6\n昨产 木%.0f 土%.0f 粮%.0f" % [
-			plots_n, sec, float(g.get("wood", 0.0)),
-			float(g.get("earth", 0.0)), float(g.get("food", 0.0))]
-	_info.modulate = Color(0.72, 0.66, 0.55)
+		tip = "不能开挖：%s" % str(info_d["reason"])
+	_hint.text = "田 %d 块 井 %d/6%s　│　%s" % [plots_n, sec, daily, tip]
 
 	if _job_panel != null and _job_panel.visible:
 		_refresh_jobs()

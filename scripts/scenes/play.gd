@@ -62,11 +62,13 @@ func _ready() -> void:
 
 	# 教程必须塞进日志的 3 行里 —— 写多了会被顶掉，玩家只看到后半截
 	_hud.append_log("[b]《坎儿井》[/b] 水只够 7 天、粮只够 4 天 —— 挖通竖井才能活。")
-	_hud.append_log("[color=#8fd3ff]①[/color]点「挖竖井」　[color=#8fd3ff]②[/color]点「分工」派人采木取土")
-	_hud.append_log("[color=#8fd3ff]③[/color]「推进时段」×4 = 过一天。每天看右栏「昨产」调分工。")
+	_hud.append_log("[color=#8fd3ff]①[/color]顶栏按「功能」挖井、派人　[color=#8fd3ff]②[/color]按「对话」跟角色说话")
+	_hud.append_log("[color=#8fd3ff]③[/color]「推进时段」×4 = 过一天。看顶栏第三行的提示。")
 
-	# 开局直接把分工面板摆出来。用户实机反馈「不知道该怎么派人」——
-	# 按钮在那儿但没有任何提示要求点它，等于没有这个功能。
+	# 右侧功能栏默认隐藏，地图整片留给玩家。但首次启动要把分工页拉出来 ——
+	# 用户实机反馈「不知道该怎么派人」，说明光有按钮不够。
+	# 教程在底栏，所以底栏也先开着；玩家随时可以用「对话」按钮收起。
+	_hud.show_bottom_panel()
 	_hud.open_job_panel()
 
 	_probe_ai()
