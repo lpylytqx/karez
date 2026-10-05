@@ -92,6 +92,8 @@ func _ready() -> void:
 		_game.state_changed.connect(_apply_phase_light)
 	_apply_phase_light()
 
+	_start_music()
+
 	_hud.dig_requested.connect(_on_dig)
 	_hud.build_requested.connect(_on_build)
 	_hud.next_phase_requested.connect(_on_next_phase)
@@ -153,6 +155,37 @@ func _apply_phase_light() -> void:
 	# 用补间而不是直接赋值：时段切换是「天慢慢暗下来」，不是啪一下关灯。
 	var tw := create_tween()
 	tw.tween_property(_daylight, "color", target, 0.6)
+
+
+## 背景音乐。
+##
+## 这段音乐是**团队自己合成的**（scripts/pipeline/make_muqam.py），
+## 没有采任何现成录音 —— 所以不存在授权问题。为什么必须自己造：
+## 木卡姆是活态非遗，演出者具名、录音走商业发行；
+## 实测维基共享 Category:Muqam 只有 5 个文件且全是照片，
+## Freesound 用 CC0 过滤搜 muqam/dutar/rawap 是 0 条。
+## **免费 CC 这条路是空的** —— 是供给问题，不是法律问题。
+##
+## 合成抓的是木卡姆的调式特征：中立三度（约 350 音分，
+## 比西方小三度高 50、比大三度低 50），实测确认落在两者正中间。
+##
+## ⚠ 它在作品说明里必须如实写成「团队按木卡姆调式特征编程合成」，
+##    **不能写成「木卡姆演奏录音」** —— 那是不实陈述。
+##
+## 循环用「播完再播」而不是设 loop_mode：WAV 的循环要靠 .import 设置，
+## 在 headless 下不可靠；finished 信号接一下更稳，也不依赖导入配置。
+func _start_music() -> void:
+	var music := AudioStreamPlayer.new()
+	music.name = "Music"
+	var st: AudioStream = load("res://audio/muqam_theme.wav")
+	if st == null:
+		return
+	music.stream = st
+	music.volume_db = -12.0
+	music.bus = "Master"
+	add_child(music)
+	music.finished.connect(func() -> void: music.play())
+	music.play()
 
 
 func _probe_ai() -> void:
