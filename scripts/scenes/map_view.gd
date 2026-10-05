@@ -74,7 +74,6 @@ var _prop_nodes: Dictionary = {}
 var _draggable: Array = []
 var _drag_id := ""
 var _drag_off := Vector2.ZERO
-var _drag_moved := false
 
 var _terrain_root: Node2D
 var _prop_root: Node2D
@@ -304,6 +303,13 @@ func _is_reserved(ax: float, ay: float) -> bool:
 
 
 func _place_props() -> void:
+	# ⚠ 必须先清空。_place_props 每次 refresh() 都跑，
+	# 而下面会 _draggable.append(id) —— 不清的话每刷新一次就多塞 3 个重复 id，
+	# 走几十回合涨到几百条，_pick_building() 每次点击都要遍历，越玩越卡。
+	# 这是自检时发现的（无界增长，功能不错但必须修）。
+	_draggable.clear()
+	_prop_nodes.clear()
+
 	var lv := 0
 	if _game != null:
 		lv = int(_game.oasis_level())
@@ -525,7 +531,6 @@ func _handle_drag(event: InputEvent) -> bool:
 			if id == "":
 				return false
 			_drag_id = id
-			_drag_moved = false
 			var sp: Sprite2D = _prop_nodes[id]
 			_drag_off = sp.position - mp
 			get_viewport().set_input_as_handled()
@@ -547,7 +552,6 @@ func _handle_drag(event: InputEvent) -> bool:
 		if sp != null and is_instance_valid(sp):
 			# 拖动中只搬精灵；松手才提交，免得每帧广播 state_changed
 			sp.position = mp + _drag_off
-			_drag_moved = true
 			get_viewport().set_input_as_handled()
 			return true
 	return false
