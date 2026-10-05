@@ -22,18 +22,18 @@ const ROWS := 22
 const OASIS_RADIUS := [3.2, 4.8, 6.2, 7.6, 9.0, 10.4, 11.8]
 
 const TERRAIN_TEX := {
-	# 沙漠底用「程序化生成的纯沙」（scripts/pipeline/make_sand.py）。
+	# 四档底纹全部用「程序化生成的纯地面」（scripts/pipeline/make_ground.py）。
 	#
-	# 为什么不用现成的 desert_light_01/02：那两张**各自带一块橙黄色斑块**，
-	# 是设计给「沙漠 ↔ 其他地形」交界处用的**过渡贴图**，不是底纹。
-	# 拿它们平铺整张地图（40x22 = 880 次）会得到明显的墙纸效果 ——
-	# 斑块等距重复，一眼就看得出是贴图而不是沙地（实机截图确认过）。
-	# 而这批素材里没有纯沙漠底，所以按 32 色板程序化生成。
+	# 为什么不用现成的：那批素材里没有纯地面底纹。
+	#   · desert_light_01/02 各带一块橙黄装饰斑块，是**地形过渡贴图**
+	#   · grass_sparse/medium/lush 带等距重复的浅色弧线
+	# 16x16 的小块平铺 40x22 = 880 次之后，这些特征都会变成肉眼可见的**墙纸**
+	# —— 一眼看出是贴图而不是地面（实机截图确认过）。
 	"desert": ["res://tiles/terrain/sand_base_01.png", "res://tiles/terrain/sand_base_02.png",
 		"res://tiles/terrain/sand_base_03.png", "res://tiles/terrain/sand_ripple_01.png"],
-	"sparse": ["res://tiles/terrain/grass_sparse_01.png", "res://tiles/terrain/grass_sparse_02.png"],
-	"medium": ["res://tiles/terrain/grass_medium_01.png", "res://tiles/terrain/grass_medium_02.png"],
-	"lush":   ["res://tiles/terrain/grass_lush_01.png", "res://tiles/terrain/grass_lush_02.png"],
+	"sparse": ["res://tiles/terrain/grass_sparse_base_01.png", "res://tiles/terrain/grass_sparse_base_02.png"],
+	"medium": ["res://tiles/terrain/grass_medium_base_01.png", "res://tiles/terrain/grass_medium_base_02.png"],
+	"lush":   ["res://tiles/terrain/grass_lush_base_01.png", "res://tiles/terrain/grass_lush_base_02.png"],
 	# 绿洲与沙漠交界处用过渡贴图，让边界不那么生硬
 	"edge":   ["res://tiles/terrain/desert_light_01.png", "res://tiles/terrain/desert_light_02.png"],
 }
@@ -216,6 +216,32 @@ func _add_prop(path: String, gx: float, gy: float, z := 1) -> Sprite2D:
 	return sp
 
 
+## 树：按「根部落地」对齐 —— 精灵底边贴在格点上。
+## 用 centered=true 会让 48px 的树有一半伸到格点下方，看着像浮在半空；
+## 而且树越大偏得越多，一片树就会显得各飘各的。
+func _add_tree(path: String, gx: float, gy: float) -> void:
+	var sp := Sprite2D.new()
+	var tex := _get_tex(path)
+	sp.texture = tex
+	sp.centered = false
+	sp.position = Vector2(roundf(gx * TILE - tex.get_width() * 0.5),
+		roundf(gy * TILE - tex.get_height()))
+	sp.z_index = 3
+	_prop_root.add_child(sp)
+
+
+## 灌木/花草：贴地的小物件，按格点居中即可。
+func _add_ground(path: String, gx: float, gy: float) -> void:
+	var sp := Sprite2D.new()
+	var tex := _get_tex(path)
+	sp.texture = tex
+	sp.centered = false
+	sp.position = Vector2(roundf(gx * TILE - tex.get_width() * 0.5),
+		roundf(gy * TILE - tex.get_height() * 0.5))
+	sp.z_index = 2
+	_prop_root.add_child(sp)
+
+
 ## 该位置是否被农田 / 聚落 / 竖井走廊占用（用于植被散布避让）。
 func _is_reserved(ax: float, ay: float) -> bool:
 	if ax > FIELD_X0 - 1.0 and ax < FIELD_X0 + FIELD_COLS + 1.0 \
@@ -297,37 +323,79 @@ func _place_props() -> void:
 		_add_prop("res://tiles/props/sunflower_01.png", 5, 12)
 
 	# ── 绿洲内植被 ──
+	#
+	# ⚠ 只用「完整的树」。nature 目录里有几张看着像树、实际不是的图：
+	#   · tree_green_01(48x48) / tree_orange_01(48x48) 是**图块碎片** ——
+	#     它们其实是「一棵大树树冠的四分之一」（左上角叶、右上角棕、左下土坡…），
+	#     第一版当独立树来摆，绿洲就成了一坨认不出的绿块（实机截图确认过）。
+	#   · tree_pink_01 / tree_small_02 是**完全空的**（0% 不透明像素）。
+	# 现在用程序化生成的橡树/白杨/胡杨（scripts/pipeline/make_trees.py），
+	# 加上素材里真正完整的 tree_small_01 与 tiny-town 的四张 16x16。
+	var big_trees := [
+		"res://tiles/nature/tree_euphrates_01.png",   # 胡杨（金黄）
+		"res://tiles/nature/tree_euphrates_02.png",
+		"res://tiles/nature/tree_oak_01.png",         # 圆冠阔叶
+		"res://tiles/nature/tree_small_01.png",       # 32x32 小圆树
+	]
+	var small_trees := [
+		"res://tiles/nature/tree_poplar_01.png",      # 白杨（新疆杨）
+		"res://tiles/nature/tree_poplar_02.png",
+		"res://tiles/terrain/tree_green_01.png",
+		"res://tiles/terrain/tree_green_02.png",
+		"res://tiles/terrain/tree_autumn_01.png",
+		"res://tiles/terrain/tree_autumn_02.png",
+	]
+	var shrubs := [
+		"res://tiles/nature/bush_01.png",
+		"res://tiles/nature/flower_01.png",
+		"res://tiles/nature/grass_tuft_01.png",
+	]
+
 	var r := oasis_radius()
 	var cx := COLS / 2.0
 	var cy := ROWS / 2.0 + 1.0
-	var greens := [
-		"res://tiles/nature/tree_green_01.png",
-		"res://tiles/nature/tree_palm_01.png",
-		"res://tiles/nature/tree_small_01.png",
-		"res://tiles/nature/bush_01.png",
-	]
-	var flowers := ["res://tiles/nature/flower_01.png", "res://tiles/nature/grass_tuft_01.png"]
+
+	# 树的密度大幅下调：48px 的树挤在 240px 见方的区域里必然互相压盖。
+	# 并且加**间距约束** —— 不满足距离就重新投点，而不是硬放下去。
+	var placed_at: Array = []
 	var placed := 0
-	var target := int(r * 2.6)
+	var target := maxi(3, int(r * 1.05))
 	var guard := 0
-	while placed < target and guard < 600:
+	while placed < target and guard < 900:
 		guard += 1
 		var ax := _rng.randf_range(cx - r, cx + r)
 		var ay := _rng.randf_range(cy - r, cy + r)
-		if Vector2(ax - cx, ay - cy).length() > r * 0.95:
+		if Vector2(ax - cx, ay - cy).length() > r * 0.88:
 			continue
 		if _is_reserved(ax, ay):
 			continue
-		if _rng.randf() < 0.25:
-			_add_prop(flowers[_rng.randi() % flowers.size()], ax, ay)
+		var pos := Vector2(ax, ay)
+		var too_close := false
+		for p in placed_at:
+			if pos.distance_to(p) < 2.7:
+				too_close = true
+				break
+		if too_close:
+			continue
+		placed_at.append(pos)
+		if _rng.randf() < 0.45:
+			_add_ground(str(small_trees[_rng.randi() % small_trees.size()]), ax, ay)
 		else:
-			_add_prop(greens[_rng.randi() % greens.size()], ax, ay)
+			_add_tree(str(big_trees[_rng.randi() % big_trees.size()]), ax, ay)
 		placed += 1
 
-	# ── 沙漠枯树：绿洲外的荒芜对照 ──
+	# 灌木花草单独撒一层，用很小的间距，专门填补树之间的空隙
+	for i in range(int(r * 2.4)):
+		var ax := _rng.randf_range(cx - r * 0.92, cx + r * 0.92)
+		var ay := _rng.randf_range(cy - r * 0.92, cy + r * 0.92)
+		if _is_reserved(ax, ay):
+			continue
+		_add_ground(str(shrubs[_rng.randi() % shrubs.size()]), ax, ay)
+
+	# ── 沙漠枯树：绿洲外的荒芜对照（也是完整贴图，48x48）──
 	for g in [Vector2i(6, 8), Vector2i(34, 7), Vector2i(20, 2), Vector2i(14, 19),
 			Vector2i(3, 19), Vector2i(36, 19)]:
-		_add_prop("res://tiles/nature/tree_dead_01.png", g.x, g.y)
+		_add_tree("res://tiles/nature/tree_dead_01.png", g.x, g.y)
 
 	# ── 明渠：涝坝往东引水，末端接农田 ──
 	if lv >= 1:
