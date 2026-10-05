@@ -59,7 +59,7 @@ const PLACES := {
 	"workshop_b":   {"xy": Vector2(33.0, 13.0), "kind": "fixed",    "tex": "workshop_01.png",
 		"gate": {"kind": "sections", "n": 5}},
 	# ── 区域地标：地本身一直在，只是有没有人在那干活 ──
-	"shaft_chain":  {"xy": Vector2(23.0, 13.4), "kind": "area", "tex": "", "gate": {"kind": "always"}},
+	"shaft_chain":  {"xy": Vector2(27.0, 10.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},   # 井线中段(见 map_view 的 SHAFT_POS)
 	"fields":       {"xy": Vector2(16.5, 12.5), "kind": "area", "tex": "", "gate": {"kind": "always"}},
 	"forest":       {"xy": Vector2(17.0,  7.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},
 	"dig_earth":    {"xy": Vector2( 6.5, 11.0), "kind": "area", "tex": "", "gate": {"kind": "always"}},

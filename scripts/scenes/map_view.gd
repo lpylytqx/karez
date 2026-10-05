@@ -41,10 +41,24 @@ const TERRAIN_TEX := {
 ## 竖井链：从聚落斜向北（往山里去）。
 ## 走斜线而不是垂直一列，是因为竖井贴图是 32x32 —— 若间隔只有 2 格（32px）
 ## 会边贴边连成一条实心柱子（实机截图确认过）。斜向的对角距离约 45px，能分清每一口。
-const SHAFT_GX0 := 25
-const SHAFT_GY0 := 15
-const SHAFT_DX := -1
-const SHAFT_DY := -2
+##
+## 井位改成**显式坐标表**（原来是线性公式 GX0+DX*i / GY0+DY*i），原因：
+##   用户定「水从东北的雪山来，井线朝山走」——即朝**右上方**排。
+##   但东侧被三栋建筑占住，直线穿不过去：
+##     晾房 x28.5~31.5 y10~14 ／ 马厩 x29.5~32.5 y13.5~17.5 ／ 作坊 x31~35 y10~16
+##   所以必须贴着它们**上方**那条空带走，线性公式表达不了。
+## 取点原则：
+##   · 从聚落北侧 (23,12) 出发，一路朝东北 —— 第一口离村最近，越往后越靠山
+##   · y 全程 ≥ 5：顶栏常驻占 0~78px（= 0~4.9 格），再高就被顶栏吃掉
+##   · 相邻两口间距 ≥ 2 格，32px 的井口贴图才不会连成一根柱子
+const SHAFT_POS := [
+	Vector2(23.0, 12.0),   # 第 1 口：聚落北侧，出水口最近
+	Vector2(25.0, 11.0),
+	Vector2(27.0, 10.0),
+	Vector2(29.0,  9.0),
+	Vector2(31.0,  8.0),   # 贴着晾房与作坊上方
+	Vector2(33.0,  7.0),   # 第 6 口：最靠东北的雪山
+]
 const MAX_SHAFTS := 6
 
 ## 农田块（格）—— 16x16，可以紧排。
@@ -141,10 +155,11 @@ func oasis_radius() -> float:
 	return float(OASIS_RADIUS[lv])
 
 
-## 第 i 段竖井的格子坐标（i 从 1 开始）。
+## 第 i 段竖井的格子坐标（i 从 1 开始）。位置取自显式表 SHAFT_POS。
 func shaft_grid(i: int) -> Vector2i:
-	var k := i - 1
-	return Vector2i(SHAFT_GX0 + k * SHAFT_DX, SHAFT_GY0 + k * SHAFT_DY)
+	var k := clampi(i - 1, 0, SHAFT_POS.size() - 1)
+	var p: Vector2 = SHAFT_POS[k]
+	return Vector2i(int(p.x), int(p.y))
 
 
 ## 第 i 段竖井的像素中心。
