@@ -17,6 +17,8 @@ var _events: Node
 var _map: Node2D
 var _villagers: Node2D
 var _townfolk: Node2D
+## 气氛粒子（灶上的炊烟 + 沙尘）
+var _atmo: Node2D
 ## 昼夜光照。CanvasModulate 只影响同一个 Canvas 里的东西 ——
 ## HUD 挂在独立的 CanvasLayer 上，所以界面**不会**跟着变暗。
 var _daylight: CanvasModulate
@@ -67,6 +69,7 @@ func _ready() -> void:
 	_map = $MapView
 	_villagers = $Villagers
 	_townfolk = $Townfolk
+	_atmo = $Atmosphere
 	_player = $Player
 	_daylight = $DayLight
 	_hud = $HUDLayer/HUD
@@ -80,6 +83,7 @@ func _ready() -> void:
 	_villagers.setup(_game, _map)
 	# 地图上的七个角色：点他 / 走近按 E，都会切到底栏并用那个人开始对话
 	_townfolk.setup(_player, _game)
+	_atmo.setup(_game, _map)
 	_townfolk.talk_requested.connect(_on_talk_to)
 	_hud.setup(_game, _events)
 
