@@ -19,6 +19,10 @@ const SCHEMA_VERSION := "1.0"
 ## 演示时若担心网络，把它打开即可 100% 确定不冷场。
 @export var offline_mode := false
 
+## 由场景注入。存档时一并保存事件系统的触发记录，
+## 否则读档后事件冷却与次数会重置 —— 违反「存档即可复现」的纪律。
+var event_system: Node = null
+
 var numbers: Dictionary = {}
 var state: Dictionary = {}
 var player_character := "lao_kanjiang"
@@ -77,7 +81,9 @@ func _initial_state() -> Dictionary:
 
 	return {
 		"calendar": {"day": 1, "season": "spring", "phase": "morning"},
-		"karez": {"sections": 0, "flow_per_day": 0, "sections_days_left": 0},
+		# flow_per_day 初始即等于旱季残流：HUD 显示的「日出水量」从第一帧就是真实值，
+		# 不必等到第一次 advance_day 之后才有数。
+		"karez": {"sections": 0, "flow_per_day": float(water_cfg.get("flow_per_day", 5)), "sections_days_left": 0},
 		"resources": {
 			"water": {
 				"current": float(water_cfg.get("current", 90)),
@@ -103,6 +109,12 @@ func _initial_state() -> Dictionary:
 		},
 		"population": 6,
 		"stats": {"prosperity": 5.0, "reputation": 10.0, "morale": 55.0, "security": 40.0},
+		# 建筑：id -> {level, condition}。condition 从 100 递减，低于 30 功能打折。
+		"buildings": {},
+		# 施工队列：同一时刻只允许一项在修（单人经营的节奏约束）
+		"construction": {"kind": "", "target": "", "display": "", "days_left": 0, "total_days": 0},
+		# 行动点：每个时段重置，用于限制点击式操作（与回合制一致）
+		"action_points": 2,
 		"characters": {
 			"lao_kanjiang": {"affinity": 0.0, "mood": 60.0, "memory": []},
 			"muqam_yiren": {"affinity": 0.0, "mood": 70.0, "memory": []},
@@ -285,6 +297,99 @@ func _apply_op(current: float, op: String, value: float) -> float:
 	return current
 
 
+# ---------------------------------------------------------------------------
+# 事件效果应用 —— 与 AI 的 state_delta 刻意分开
+# ---------------------------------------------------------------------------
+#
+# 两条路必须分开，原因不同：
+#   • AI 的 state_delta 不可信 → 路径白名单极窄、只允许数值、一律夹紧
+#   • 事件效果   是我们自己写的可信内容 → 需要 karez./flags./buildings. 等路径，
+#     且 flags 是布尔赋值，套 AI 那套校验会被全部丢弃
+#
+# 但数值仍然夹紧 —— 手写 64 条事件时，把 50 写成 500 是很容易发生的事。
+
+const EVENT_ALLOWED_PREFIXES := [
+	"resources.", "stats.", "karez.", "flags.", "buildings.",
+	"characters.", "calendar.", "population",
+]
+
+
+## 应用事件效果。返回 {applied, dropped, memories}
+func apply_effects(effects: Array) -> Dictionary:
+	var applied := 0
+	var dropped := 0
+	var memories: Array = []
+
+	for e in effects:
+		if not (e is Dictionary):
+			dropped += 1
+			continue
+
+		# memory 副作用：不碰数值，只往角色记忆里追加一条
+		if e.has("memory"):
+			var m = e["memory"]
+			if m is Dictionary and str(m.get("character", "")) != "":
+				memories.append({
+					"character": str(m["character"]),
+					"text": str(m.get("text", "")),
+					"kind": str(m.get("kind", "")),
+				})
+				applied += 1
+			else:
+				dropped += 1
+			continue
+
+		var op := str(e.get("op", ""))
+		var path := str(e.get("path", ""))
+		var raw = e.get("value", null)
+
+		if not _event_path_allowed(path):
+			push_warning("事件效果丢弃：路径越界 %s" % path)
+			dropped += 1
+			continue
+
+		# flags.* —— 只支持 set，值是布尔
+		if path.begins_with("flags."):
+			if op == "set":
+				set_flag(path.substr(6), bool(raw))
+				applied += 1
+			else:
+				push_warning("事件效果丢弃：flags 仅支持 set（%s %s）" % [op, path])
+				dropped += 1
+			continue
+
+		# buildings.<id> —— set true 即建成
+		if path.begins_with("buildings."):
+			if op == "set" and bool(raw):
+				state["buildings"][path.substr(10)] = {"level": 1, "condition": 100.0}
+				applied += 1
+			else:
+				dropped += 1
+			continue
+
+		if op not in ["add", "sub", "set", "mul"] or not (raw is float or raw is int) or raw is bool:
+			push_warning("事件效果丢弃：非法 op/value（%s %s %s）" % [op, path, str(raw)])
+			dropped += 1
+			continue
+
+		var value := clampf(float(raw), -MAX_DELTA, MAX_DELTA)
+		if _set_path(path, op, value):
+			applied += 1
+		else:
+			dropped += 1
+
+	clamp_all()
+	state_changed.emit()
+	return {"applied": applied, "dropped": dropped, "memories": memories}
+
+
+func _event_path_allowed(path: String) -> bool:
+	for prefix in EVENT_ALLOWED_PREFIXES:
+		if path.begins_with(prefix):
+			return true
+	return path == "day"
+
+
 ## 客户端侧夹紧 —— 契约要求的第二道闸门。
 func clamp_all() -> void:
 	var water: Dictionary = state["resources"]["water"]
@@ -357,8 +462,14 @@ func get_day() -> int:
 	return int(state["calendar"]["day"])
 
 
-## 推进一天：出水量入账、消耗扣除、季节轮转。
-func advance_day() -> void:
+## 推进一天：出水量入账、消耗扣除、施工推进、季节轮转。
+## 返回完工提示（无则空串），供 UI 弹提示用。
+func advance_day() -> String:
+	# 施工必须先推进：完工会让 sections 加一，而 sections 直接决定当天出水量。
+	# 早先把这一步放在函数末尾，导致「完工当天的水量仍是旧值」——
+	# 玩家挖完井看不见水量变化，要等到第二天才生效。这是实机测出来的。
+	var finished := _tick_construction()
+
 	var karez_cfg: Dictionary = numbers.get("karez", {})
 	var sections := int(state["karez"]["sections"])
 	var melt: Dictionary = karez_cfg.get("season_melt_multiplier", {})
@@ -389,6 +500,7 @@ func advance_day() -> void:
 	_roll_season()
 	clamp_all()
 	state_changed.emit()
+	return finished
 
 
 func _consume_food(amount: int) -> void:
@@ -419,6 +531,269 @@ func _roll_season() -> void:
 
 
 # ---------------------------------------------------------------------------
+# 通用取值 / 旗标 —— 供事件条件 DSL 与 UI 共用
+# ---------------------------------------------------------------------------
+
+func query(path: String):
+	## 按点路径取值。找不到返回 null（DSL 侧会当作不满足）。
+	## 特殊映射：schema 里写的 resources.water.flow_per_day 在状态里实际存于 karez.flow_per_day。
+	match path:
+		"day": return get_day()
+		"season": return str(state["calendar"].get("season", "spring"))
+		"phase": return str(state["calendar"].get("phase", "morning"))
+		"population": return int(state["population"])
+		"resources.water.flow_per_day": return float(state["karez"].get("flow_per_day", 0.0))
+		"resources.water.current": return float(state["resources"]["water"].get("current", 0.0))
+
+	if path.begins_with("flags."):
+		return bool(state.get("flags", {}).get(path.substr(6), false))
+	if path.begins_with("buildings."):
+		return state.get("buildings", {}).has(path.substr(10))
+
+	var parts := path.split(".")
+	if parts.size() == 3 and parts[0] == "characters":
+		var c: Dictionary = state["characters"].get(parts[1], {})
+		return c.get(parts[2], 0.0)
+
+	var cursor = state
+	for p in parts:
+		if cursor is Dictionary and cursor.has(p):
+			cursor = cursor[p]
+		else:
+			return null
+	return cursor
+
+
+func has_flag(flag: String) -> bool:
+	return bool(state.get("flags", {}).get(flag, false))
+
+
+func set_flag(flag: String, value: bool = true) -> void:
+	state["flags"][flag] = value
+	state_changed.emit()
+
+
+func action_points() -> int:
+	return int(state.get("action_points", 0))
+
+
+func spend_action_point(n: int = 1) -> bool:
+	## 行动点不足返回 false，调用方据此拒绝操作。
+	if action_points() < n:
+		return false
+	state["action_points"] = action_points() - n
+	state_changed.emit()
+	return true
+
+
+## 由坎儿井段数决定的绿洲繁荣度 0~6，供地图渲染与 AI 上下文共用。
+func oasis_level() -> int:
+	return clampi(int(state["karez"].get("sections", 0)), 0, 6)
+
+
+# ---------------------------------------------------------------------------
+# 坎儿井：挖掘
+# ---------------------------------------------------------------------------
+
+func _section_cfg(index: int) -> Dictionary:
+	## index 从 1 开始。越界返回 {}。
+	for s in numbers.get("karez", {}).get("sections", []):
+		if int(s.get("index", -1)) == index:
+			return s
+	return {}
+
+
+func construction_idle() -> bool:
+	return str(state["construction"].get("kind", "")) == ""
+
+
+func next_section_index() -> int:
+	return int(state["karez"].get("sections", 0)) + 1
+
+
+func dig_info() -> Dictionary:
+	## 下一段竖井的可行性与成本，UI 直接用它渲染按钮提示。
+	var idx := next_section_index()
+	var max_sections := int(numbers.get("karez", {}).get("max_sections", 6))
+	var cfg := _section_cfg(idx)
+	if cfg.is_empty() or idx > max_sections:
+		return {"ok": false, "reason": "已挖到源段，无法再深", "index": idx,
+			"display": "", "materials": {}, "days": 0, "requires_tools": 0}
+
+	var mats: Dictionary = cfg.get("materials", {})
+	var res_mats: Dictionary = state["resources"]["materials"]
+	var lack: Array = []
+	for k in mats:
+		if float(res_mats.get(k, 0.0)) < float(mats[k]):
+			lack.append("%s 需%d/有%d" % [_mat_cn(k), int(mats[k]), int(res_mats.get(k, 0.0))])
+	var need_tools := int(cfg.get("requires_tools", 0))
+	if float(res_mats.get("tools", 0.0)) < need_tools:
+		lack.append("工具 需%d/有%d" % [need_tools, int(res_mats.get("tools", 0.0))])
+
+	var reason := ""
+	if not construction_idle():
+		reason = "正在施工：%s（剩 %d 天）" % [
+			str(state["construction"].get("display", "")), int(state["construction"].get("days_left", 0))]
+	elif not lack.is_empty():
+		reason = "、".join(lack)
+
+	return {
+		"ok": reason == "",
+		"reason": reason,
+		"index": idx,
+		"display": str(cfg.get("display", "")),
+		"materials": mats,
+		"days": int(cfg.get("days", 1)),
+		"labor": int(cfg.get("labor", 0)),
+		"requires_tools": need_tools,
+	}
+
+
+func start_dig() -> Dictionary:
+	var info := dig_info()
+	if not bool(info["ok"]):
+		return {"ok": false, "reason": str(info["reason"])}
+	if not spend_action_point(1):
+		return {"ok": false, "reason": "行动点不足（每个时段 2 点）"}
+
+	var idx: int = int(info["index"])
+	var cfg := _section_cfg(idx)
+	for k in cfg.get("materials", {}):
+		state["resources"]["materials"][k] = maxf(
+			0.0, float(state["resources"]["materials"].get(k, 0.0)) - float(cfg["materials"][k]))
+
+	state["construction"] = {
+		"kind": "karez_section",
+		"target": str(idx),
+		"display": str(cfg.get("display", "竖井")),
+		"days_left": int(cfg.get("days", 1)),
+		"total_days": int(cfg.get("days", 1)),
+	}
+	clamp_all()
+	state_changed.emit()
+	return {"ok": true, "reason": "", "display": str(cfg.get("display", "")), "days": int(cfg.get("days", 1))}
+
+
+# ---------------------------------------------------------------------------
+# 建筑：建造
+# ---------------------------------------------------------------------------
+
+func _building_cfg(id: String) -> Dictionary:
+	for b in numbers.get("buildings", {}).get("list", []):
+		if str(b.get("id", "")) == id:
+			return b
+	return {}
+
+
+func build_info(id: String) -> Dictionary:
+	var cfg := _building_cfg(id)
+	if cfg.is_empty():
+		return {"ok": false, "reason": "未知建筑", "id": id, "display": ""}
+
+	var mats: Dictionary = cfg.get("materials", {})
+	var res_mats: Dictionary = state["resources"]["materials"]
+	var lack: Array = []
+	for k in mats:
+		if float(res_mats.get(k, 0.0)) < float(mats[k]):
+			lack.append("%s 需%d/有%d" % [_mat_cn(k), int(mats[k]), int(res_mats.get(k, 0.0))])
+
+	var reason := ""
+	if state["buildings"].has(id):
+		reason = "已建成"
+	elif not construction_idle():
+		reason = "正在施工：%s" % str(state["construction"].get("display", ""))
+	elif not lack.is_empty():
+		reason = "、".join(lack)
+
+	return {"ok": reason == "", "reason": reason, "id": id,
+		"display": str(cfg.get("display", id)), "materials": mats,
+		"days": int(cfg.get("days", 1)), "labor": int(cfg.get("labor", 0))}
+
+
+func start_build(id: String) -> Dictionary:
+	var info := build_info(id)
+	if not bool(info["ok"]):
+		return {"ok": false, "reason": str(info["reason"])}
+	if not spend_action_point(1):
+		return {"ok": false, "reason": "行动点不足"}
+
+	var cfg := _building_cfg(id)
+	for k in cfg.get("materials", {}):
+		state["resources"]["materials"][k] = maxf(
+			0.0, float(state["resources"]["materials"].get(k, 0.0)) - float(cfg["materials"][k]))
+
+	state["construction"] = {
+		"kind": "building",
+		"target": id,
+		"display": str(cfg.get("display", id)),
+		"days_left": int(cfg.get("days", 1)),
+		"total_days": int(cfg.get("days", 1)),
+	}
+	clamp_all()
+	state_changed.emit()
+	return {"ok": true, "reason": "", "display": str(cfg.get("display", id)), "days": int(cfg.get("days", 1))}
+
+
+## 施工推进一天，返回完工提示（无完工返回空串）。
+func _tick_construction() -> String:
+	if construction_idle():
+		return ""
+	var c: Dictionary = state["construction"]
+	c["days_left"] = int(c["days_left"]) - 1
+	if int(c["days_left"]) > 0:
+		return ""
+
+	var kind := str(c.get("kind", ""))
+	var target := str(c.get("target", ""))
+	var display := str(c.get("display", ""))
+
+	if kind == "karez_section":
+		var idx := int(target)
+		state["karez"]["sections"] = idx
+		state["flags"]["karez_section_%d_done" % idx] = true
+		if idx >= 1:
+			state["flags"]["karez_first_section_done"] = true
+		state["stats"]["prosperity"] = minf(100.0, float(state["stats"]["prosperity"]) + 2.0)
+	elif kind == "building":
+		state["buildings"][target] = {"level": 1, "condition": 100.0}
+		state["stats"]["prosperity"] = minf(100.0, float(state["stats"]["prosperity"]) + 1.5)
+
+	state["construction"] = {"kind": "", "target": "", "display": "", "days_left": 0, "total_days": 0}
+	return "【完工】%s 已建成" % display
+
+
+# ---------------------------------------------------------------------------
+# 时段推进（回合制的节奏单位）
+# ---------------------------------------------------------------------------
+
+func get_phase() -> String:
+	return str(state["calendar"].get("phase", "morning"))
+
+
+func advance_phase() -> Dictionary:
+	## 推进一个时段；跨过 night 则结算一天。
+	## 返回 {day_advanced: bool, finished: String}
+	var phases: Array = numbers.get("calendar", {}).get(
+		"phases_per_day", ["morning", "afternoon", "evening", "night"])
+	var i := phases.find(get_phase())
+	var next_i := (i + 1) % phases.size()
+	state["calendar"]["phase"] = phases[next_i]
+	state["action_points"] = int(numbers.get("calendar", {}).get("action_points_per_phase", 2))
+
+	var finished := ""
+	var day_advanced := false
+	if next_i == 0:
+		finished = advance_day()
+		day_advanced = true
+	state_changed.emit()
+	return {"day_advanced": day_advanced, "finished": finished, "phase": str(phases[next_i])}
+
+
+func _mat_cn(k: String) -> String:
+	return {"wood": "木", "earth": "土", "cloth": "布", "tools": "工具"}.get(k, k)
+
+
+# ---------------------------------------------------------------------------
 # 存档（S3 阶段补 ai_log 以支持完整复现）
 # ---------------------------------------------------------------------------
 
@@ -428,6 +803,9 @@ func save_to(path: String) -> bool:
 		"seed": 0,
 		"state": state,
 	}
+	# 事件系统的触发记录一并入库，否则读档后冷却与次数会重置
+	if event_system != null:
+		payload["events"] = event_system.export_state()
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_error("存档失败：%s" % path)
@@ -444,6 +822,8 @@ func load_from(path: String) -> bool:
 	if not (parsed is Dictionary) or not parsed.has("state"):
 		return false
 	state = parsed["state"]
+	if event_system != null and parsed.has("events"):
+		event_system.import_state(parsed["events"])
 	clamp_all()
 	state_changed.emit()
 	return true

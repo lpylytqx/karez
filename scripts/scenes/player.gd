@@ -24,9 +24,28 @@ func _ready() -> void:
 	_set_frame(1, facing)
 
 func _physics_process(delta: float) -> void:
+	# 输入框获得焦点时，方向键应留给文字光标，不能让角色跟着跑。
+	# 把对话栏和行走放在同一屏之后，这是必然出现的冲突。
+	if get_viewport().gui_get_focus_owner() is LineEdit:
+		velocity = Vector2.ZERO
+		step = 1
+		anim_t = 0.0
+		_set_frame(1, facing)
+		return
+
 	var v := Vector2.ZERO
 	v.x = Input.get_axis("ui_left", "ui_right")
 	v.y = Input.get_axis("ui_up", "ui_down")
+	# WASD 支持（用物理键码，不受输入法状态影响）
+	if Input.is_physical_key_pressed(KEY_A):
+		v.x = -1.0
+	elif Input.is_physical_key_pressed(KEY_D):
+		v.x = 1.0
+	if Input.is_physical_key_pressed(KEY_W):
+		v.y = -1.0
+	elif Input.is_physical_key_pressed(KEY_S):
+		v.y = 1.0
+
 	if v != Vector2.ZERO:
 		facing = _dir_to_row(v)
 		velocity = v.normalized() * SPEED
