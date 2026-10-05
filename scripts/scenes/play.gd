@@ -66,7 +66,7 @@ func _ready() -> void:
 
 	# 教程必须塞进日志的 3 行里 —— 写多了会被顶掉，玩家只看到后半截
 	_hud.append_log("[b]《坎儿井》[/b] 水只够 7 天、粮只够 4 天 —— 挖通竖井才能活。")
-	_hud.append_log("[color=#8fd3ff]①[/color]顶栏按「功能」挖井、派人　[color=#8fd3ff]②[/color]按「对话」跟角色说话")
+	_hud.append_log("[color=#8fd3ff]①[/color]顶栏按「功能」挖井、派人　[color=#8fd3ff]②[/color]这里选「对谁说」，再打字")
 	_hud.append_log("[color=#8fd3ff]③[/color]「推进时段」×4 = 过一天。看顶栏第三行的提示。")
 
 	# 右侧功能栏默认隐藏，地图整片留给玩家。但首次启动要把分工页拉出来 ——

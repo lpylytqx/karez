@@ -19,14 +19,23 @@ signal say_requested(text: String, speaker_id: String)
 
 const FONT_PATH := "res://fonts/ark-12px/ark-pixel-12px-proportional-zh_hans.ttf"
 
+## 对话对象。hint 是这个人的一句话身份 —— 玩家要能看出「换个人有什么用」。
+## 数据与 data/characters.json 的人设对应，只是压缩到一行能放下的长度。
 const CHARACTERS := [
-	{"id": "lao_kanjiang", "name": "老坎匠"},
-	{"id": "muqam_yiren", "name": "木卡姆艺人"},
-	{"id": "hasake_qishou", "name": "哈萨克骑手"},
-	{"id": "hanshang_zhanggui", "name": "商队掌柜"},
-	{"id": "chuniang", "name": "厨娘"},
-	{"id": "shenmi_lvren", "name": "神秘旅人"},
-	{"id": "mafei_toumu", "name": "马匪头目"},
+	{"id": "lao_kanjiang", "name": "老坎匠",
+		"hint": "七十岁匠人，一生挖过十一条坎儿井 —— 问井、土质、水脉"},
+	{"id": "muqam_yiren", "name": "木卡姆艺人",
+		"hint": "民间乐师，走遍南北道 —— 问士气、人心、各地传闻"},
+	{"id": "hasake_qishou", "name": "哈萨克骑手",
+		"hint": "草原青年，骑术精湛 —— 问探路、草原、马匹"},
+	{"id": "hanshang_zhanggui", "name": "商队掌柜",
+		"hint": "走丝路三十年 —— 问物价、买卖、商队何时来"},
+	{"id": "chuniang", "name": "厨娘",
+		"hint": "掌驿站伙食，消息最灵通 —— 问粮食、谁欠谁、谁跟谁不好"},
+	{"id": "shenmi_lvren", "name": "神秘旅人",
+		"hint": "身份不明的过客，什么都看在眼里 —— 问主线"},
+	{"id": "mafei_toumu", "name": "马匪头目",
+		"hint": "沙漠马匪头目，手下二三十人 —— 谈判和威胁都在这"},
 ]
 
 const BUILDINGS := [
@@ -49,6 +58,10 @@ var _dig_hint: Label
 var _conn: Label
 ## 顶栏第三行：当前该做什么。把「缺什么」翻译成「点哪里」，并显示昨日产出。
 var _hint: Label
+## 「对谁说」那一行的身份说明，让玩家看出换个人有什么用
+var _who_hint: Label
+## 是否已经把「怎么选对话对象」讲过一遍
+var _speaker_explained := false
 ## 右侧功能栏与底栏。**默认隐藏**，用顶栏的「功能」「对话」按钮开关。
 var _right: Panel
 var _bottom: Panel
@@ -349,21 +362,36 @@ func _toggle_bottom_panel() -> void:
 	if _bottom == null:
 		return
 	_bottom.visible = not _bottom.visible
-	if _bottom.visible and _input != null:
-		_input.grab_focus()
+	if _bottom.visible:
+		_explain_speaker_once()
+		if _input != null:
+			_input.grab_focus()
 
 
 ## 供场景在开局时把底栏打开（教程在里面）。
 func show_bottom_panel() -> void:
 	if _bottom != null:
 		_bottom.visible = true
+	# 把「对谁说」那一行的身份提示先填上，否则开局是一行空白
+	_on_speaker_changed_no_log(int(_speaker.selected))
+
+
+## 只更新提示，不写日志 —— 开局时日志要留给教程
+func _on_speaker_changed_no_log(idx: int) -> void:
+	if idx < 0 or idx >= CHARACTERS.size():
+		return
+	var c: Dictionary = CHARACTERS[idx]
+	if _who_hint != null:
+		_who_hint.text = str(c.get("hint", ""))
+	if _input != null:
+		_input.placeholder_text = "跟%s说点什么…（回车）" % str(c["name"])
 
 
 func _build_bottom() -> void:
 	# 84 高 = 日志 48（正好 3 行）+ 输入行 31 + 边距。
 	# 日志给 40 会只显示 2.5 行 —— 最上面那行被切掉半截，实机截图里很难看。
 	# **默认隐藏**，用顶栏的「对话」按钮开关。
-	_bottom = _make_panel(Rect2(0, 284, 640, 76), Color(0.11, 0.085, 0.06, 0.95))
+	_bottom = _make_panel(Rect2(0, 252, 640, 108), Color(0.11, 0.085, 0.06, 0.95))
 	_bottom.visible = false
 	var p: Panel = _bottom
 
@@ -378,29 +406,57 @@ func _build_bottom() -> void:
 	_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(_log)
 
-	# 对话对象选框挪到底栏 —— 它本来就属于「对话」这件事，
-	# 放顶栏会跟面板开关抢位置
+	# 「对谁说」——原来只有一个光秃秃的下拉框，玩家以为是在切换自己的人物。
+	# 现在加了标签 + 这个人的一句话身份，切换的意义一眼可见。
+	_make_label(p, Vector2(4, 52), Vector2(56, 24), "对谁说")
+
 	_speaker = OptionButton.new()
-	_speaker.position = Vector2(4, 46)
-	_speaker.size = Vector2(92, 24)
+	_speaker.position = Vector2(62, 52)
+	_speaker.size = Vector2(108, 24)
 	_speaker.add_theme_font_size_override("font_size", 12)
 	for c in CHARACTERS:
 		_speaker.add_item(str(c["name"]))
 	_speaker.selected = 0
+	_speaker.item_selected.connect(_on_speaker_changed)
 	p.add_child(_speaker)
 
+	_who_hint = _make_label(p, Vector2(176, 52), Vector2(460, 24), "")
+	_who_hint.modulate = Color(0.78, 0.82, 0.62)
+
 	_input = LineEdit.new()
-	_input.position = Vector2(100, 46)
-	_input.size = Vector2(460, 24)
-	_input.placeholder_text = "说点什么…（回车）"
+	_input.position = Vector2(4, 80)
+	_input.size = Vector2(552, 24)
+	_input.placeholder_text = "说点什么…（回车发送）"
 	_input.add_theme_font_size_override("font_size", 12)
 	p.add_child(_input)
 
-	var send := _make_button(p, Rect2(564, 46, 68, 24), "发送")
+	var send := _make_button(p, Rect2(560, 80, 76, 24), "发送")
 	send.pressed.connect(_on_send)
 	_input.text_submitted.connect(func(_t): _on_send())
 	# 底栏默认隐藏，这里不能抢焦点 —— 否则方向键会被输入框吃掉，
 	# 玩家开局就发现角色走不动。点「对话」按钮时才 grab_focus。
+
+
+## 切换对话对象。要让玩家明白「换个人 = 换一套知识和性格」，
+## 所以除了更新占位符，还在日志里落一条说明。
+func _on_speaker_changed(idx: int) -> void:
+	_on_speaker_changed_no_log(idx)
+	if idx < 0 or idx >= CHARACTERS.size():
+		return
+	var c: Dictionary = CHARACTERS[idx]
+	append_log("[color=#9fd4a0]—— 现在跟「%s」说话。%s[/color]" % [
+		str(c["name"]), str(c.get("hint", ""))])
+
+
+## 底栏第一次打开时，把「对谁说」这件事讲一遍。
+func _explain_speaker_once() -> void:
+	if _speaker_explained:
+		return
+	_speaker_explained = true
+	var c: Dictionary = CHARACTERS[maxi(0, _speaker.selected)]
+	append_log("[color=#8fd3ff]这里可以选跟谁说话[/color] —— 同一个问题，七个人给你的答案完全不同。")
+	append_log("[color=#888888]当前：%s（%s）[/color]" % [
+		str(c["name"]), str(c.get("hint", ""))])
 
 
 func _on_send() -> void:
