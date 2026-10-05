@@ -53,7 +53,7 @@ func _ready() -> void:
 	# 居民要在状态层之后初始化：它靠 state_changed 信号跟随分工变化
 	_villagers.setup(_game, _map)
 	# 地图上的七个角色：点他 / 走近按 E，都会切到底栏并用那个人开始对话
-	_townfolk.setup(_player)
+	_townfolk.setup(_player, _game)
 	_townfolk.talk_requested.connect(_on_talk_to)
 	_hud.setup(_game, _events)
 

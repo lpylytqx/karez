@@ -70,6 +70,7 @@ const NAME_COLOR := Color(1.0, 0.92, 0.62)
 const NEAR_COLOR := Color(0.55, 1.0, 0.60)
 
 var _player: Node2D = null
+var _game: Node = null
 var _names: Array = []          # 全部名字，用于「谁最近」判断
 ## [{id, sprite, label, base}]
 var _folk: Array = []
@@ -77,16 +78,32 @@ var _hover := ""
 var _near := ""
 
 
-func setup(player: Node2D) -> void:
+func setup(player: Node2D, game: Node) -> void:
 	_player = player
+	_game = game
 	z_index = 7
 	for cid in Sites.NPC_HOME:
 		_make_person(str(cid))
 	set_process_unhandled_input(true)
 
 
+## 建筑被拖走后重摆站位 —— 位置从 game_state 推导，所以这里只要重新读一次。
+func resync_positions() -> void:
+	for f in _folk:
+		var cid := str(f["id"])
+		var cell: Vector2 = _game.npc_xy(cid) * TILE if _game != null else Vector2.ZERO
+		f["base"] = cell
+		var sp: Sprite2D = f["sprite"]
+		if is_instance_valid(sp):
+			sp.position = cell
+		var lbl: Label = f["label"]
+		if is_instance_valid(lbl):
+			lbl.position = Vector2(cell.x - W_IDLE * 0.5,
+				maxf(TOP_SAFE_Y, cell.y + float(LABEL_DY.get(cid, -30.0))))
+
+
 func _make_person(cid: String) -> void:
-	var cell := Sites.npc_xy(cid) * TILE
+	var cell: Vector2 = _game.npc_xy(cid) * TILE if _game != null else Sites.npc_xy(cid) * TILE
 
 	var sp := Sprite2D.new()
 	sp.texture = load(str(SKIN[cid]))

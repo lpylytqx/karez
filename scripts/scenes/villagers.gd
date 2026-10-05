@@ -127,7 +127,7 @@ func _get_tex(path: String) -> Texture2D:
 ## 工作地点的像素坐标。**中心来自 core/sites.gd**（唯一真源），
 ## 同一岗位的多人再按黄金角散开，避免叠成一个人。
 func _workplace_pos(jid: String, idx: int) -> Vector2:
-	var base := Sites.job_xy(jid)
+	var base: Vector2 = _game.job_xy(jid) if _game != null else Sites.job_xy(jid)
 	if idx <= 0:
 		return Vector2(base.x * TILE, base.y * TILE)
 	var k := float(idx)

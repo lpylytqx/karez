@@ -39,10 +39,63 @@ var _last_gain: Dictionary = {}
 func _ready() -> void:
 	numbers = _load_numbers()
 	state = _initial_state()
+	_ensure_sites()
 	_http = HTTPRequest.new()
 	_http.timeout = 60.0
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
+
+
+# ---------------------------------------------------------------------------
+# 建筑坐标（可移动）
+# ---------------------------------------------------------------------------
+#
+# 默认值来自 core/sites.gd 的 PLACES；拖拽移动后写进 state["sites"]，
+# 于是自动进存档。map_view / townfolk / villagers 三处都从这里取坐标，
+# 所以**移动一座建筑，NPC 与工作地点跟着挪是自动的**，不需要各自改。
+
+## 把 sites.gd 的默认坐标灌进 state（已有的不动，保留玩家拖过的位置）。
+func _ensure_sites() -> void:
+	var s: Dictionary = state.get("sites", {})
+	for id in Sites.PLACES:
+		if not s.has(id):
+			var xy: Vector2 = Sites.PLACES[id]["xy"]
+			s[id] = [xy.x, xy.y]   # 存成数组：存档走 JSON，Vector2 不友好
+	state["sites"] = s
+
+
+## 取某地标的当前坐标（格）。没被移动过就是 sites.gd 里的默认值。
+func site_xy(id: String) -> Vector2:
+	var s: Dictionary = state.get("sites", {})
+	if s.has(id):
+		var v = s[id]
+		if v is Array and v.size() >= 2:
+			return Vector2(float(v[0]), float(v[1]))
+	return Sites.place_xy(id)
+
+
+## 移动一座建筑。**只有 kind == "building" 的能移**（仓库/马厩/驿馆）。
+## 移动后广播 state_changed，地图重画、NPC 与居民自己走过去。
+func move_site(id: String, grid: Vector2) -> bool:
+	if not Sites.movable_ids().has(id):
+		return false
+	# 夹在地图内，并且不能低于 y=17 —— 再往下就被底栏吃掉
+	var g := Vector2(clampf(grid.x, 1.0, 38.0), clampf(grid.y, 1.0, 17.0))
+	state["sites"][id] = [g.x, g.y]
+	state_changed.emit()
+	return true
+
+
+## NPC 站位 = 他守着的地标 + 偏移。地标一动，他自动跟着动。
+func npc_xy(cid: String) -> Vector2:
+	var home := str(Sites.NPC_HOME.get(cid, ""))
+	var off: Vector2 = Sites.NPC_OFFSET.get(cid, Vector2.ZERO)
+	return site_xy(home) + off
+
+
+## 工作地点 = 该岗位对应的地标。地标一动，工地与居民自动跟着动。
+func job_xy(jid: String) -> Vector2:
+	return site_xy(str(Sites.JOB_SITE.get(jid, "camp")))
 
 
 # ---------------------------------------------------------------------------

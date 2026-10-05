@@ -32,6 +32,7 @@ func _ready() -> void:
 	_test_event_resolve()
 	_test_memory()
 	_test_s3_loop()
+	_test_move_site()
 	_test_save_roundtrip()
 
 	print("=".repeat(64))
@@ -462,6 +463,46 @@ func _test_s3_loop() -> void:
 	_eq(dead_day, -1, "60 天内没有团灭")
 	_ok(int(s.query("karez.sections")) >= 3,
 		"自动模拟能挖通至少 3 段竖井（实际 %d 段）" % int(s.query("karez.sections")))
+
+
+func _test_move_site() -> void:
+	_section("移动建筑：坐标进 state，NPC 与工作地点自动跟随")
+
+	var g: Node = load("res://core/game_state.gd").new()
+	add_child(g)
+
+	# 默认坐标来自 sites.gd
+	_eq(g.site_xy("inn"), Vector2(26, 15), "驿馆默认在 (26,15)")
+	_ok(g.npc_xy("hanshang_zhanggui") != Vector2.ZERO, "掌柜有默认站位")
+
+	# 可移动 / 不可移动
+	_eq(g.move_site("inn", Vector2(10, 8)), true, "驿馆可移动")
+	_eq(g.move_site("reservoir", Vector2(10, 8)), false, "涝坝不可移动（fixed）")
+	_eq(g.move_site("shaft_chain", Vector2(10, 8)), false, "竖井链不可移动（area）")
+
+	# 移动后坐标真的变了
+	_eq(g.site_xy("inn"), Vector2(10, 8), "驿馆移到 (10,8)")
+
+	# ⭐ 核心：NPC 跟着走
+	var zhang_before: Vector2 = g.npc_xy("hanshang_zhanggui")
+	_eq(zhang_before, Vector2(10, 8) + Sites.NPC_OFFSET["hanshang_zhanggui"],
+		"掌柜跟着驿馆走到了新位置")
+	_ok(zhang_before.x < 20.0, "新位置确实在左半边（%.1f）" % zhang_before.x)
+
+	# 越界会被夹住
+	g.move_site("inn", Vector2(-50, 999))
+	var clamped: Vector2 = g.site_xy("inn")
+	_ok(clamped.x >= 1.0 and clamped.x <= 38.0, "x 被夹在 1~38（%.1f）" % clamped.x)
+	_ok(clamped.y <= 17.0, "y 被夹在 17 以内（%.1f）—— 再往下会被底栏吃掉" % clamped.y)
+
+	# 存档回环：移过的位置要能存下来
+	var s: Node = load("res://core/game_state.gd").new()
+	add_child(s)
+	s.move_site("inn", Vector2(14, 9))
+	_eq(s.save_to("user://_test_sites.json"), true, "存档成功")
+	s.move_site("inn", Vector2(30, 15))
+	_eq(s.load_from("user://_test_sites.json"), true, "读档成功")
+	_eq(s.site_xy("inn"), Vector2(14, 9), "移过的驿馆坐标被还原")
 
 
 func _test_save_roundtrip() -> void:

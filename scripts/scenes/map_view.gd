@@ -55,6 +55,12 @@ const FIELD_COLS := 6
 const FIELD_ROWS := 4
 
 var _game: Node = null
+## 可拖动建筑：id -> Sprite2D，以及正在拖的那个
+var _prop_nodes: Dictionary = {}
+var _draggable: Array = []
+var _drag_id := ""
+var _drag_off := Vector2.ZERO
+var _drag_moved := false
 
 var _terrain_root: Node2D
 var _prop_root: Node2D
@@ -87,6 +93,29 @@ func setup(game: Node) -> void:
 	if _game != null and not _game.state_changed.is_connected(refresh):
 		_game.state_changed.connect(refresh)
 	refresh()
+
+
+# ---------------------------------------------------------------------------
+# 拖拽移动建筑
+# ---------------------------------------------------------------------------
+#
+# 只有 sites.gd 里 kind == "building" 的能拖（仓库 / 马厩 / 驿馆）。
+# 松开鼠标时吸附到 0.5 格，然后调 game_state.move_site() 写进 state ——
+# NPC 与居民的位置都从 state 推导，所以会自动重新定位，不需要在这里管。
+#
+# 为什么用 _unhandled_input：HUD 上的按钮与面板会先吃掉点击，
+# 所以拖面板不会误拖到地图上的建筑。
+
+## 鼠标点在哪座可移动建筑上（按贴图实际大小做包围盒）
+func _pick_building(p: Vector2) -> String:
+	for id in _draggable:
+		var sp: Sprite2D = _prop_nodes.get(str(id), null)
+		if sp == null or not is_instance_valid(sp) or sp.texture == null:
+			continue
+		var half := Vector2(sp.texture.get_width(), sp.texture.get_height()) * 0.5
+		if Rect2(sp.position - half, half * 2.0).has_point(p):
+			return str(id)
+	return ""
 
 
 func _get_tex(path: String) -> Texture2D:
@@ -283,8 +312,12 @@ func _place_props() -> void:
 			continue
 		if (id == "shop" or id == "workshop_b") and lv < 5:
 			continue
-		var xy: Vector2 = p["xy"]
-		_add_prop("res://buildings/%s" % tex, xy.x, xy.y)
+		var xy: Vector2 = _game.site_xy(id) if _game != null else p["xy"]
+		var sp := _add_prop("res://buildings/%s" % tex, xy.x, xy.y)
+		# 可移动的建筑留个引用，供拖拽时改位置
+		if kind == "building":
+			_prop_nodes[id] = sp
+			_draggable.append(str(id))
 
 	# ── 农田：坎儿井通水后才出现（水决定能种多少地）──
 	var slots: Array = []
@@ -453,9 +486,53 @@ func _build_shafts() -> void:
 # ---------------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
+	# ── 拖拽可移动建筑（仓库/马厩/驿馆）──
+	# 放在最前面：拖拽优先级高于「点竖井」，
+	# 否则在建筑与竖井重叠处按下会被竖井抢走。
+	if _handle_drag(event):
+		return
+
 	if event is InputEventMouseButton \
 			and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var idx := shaft_at(get_global_mouse_position())
 		if idx > 0:
 			shaft_pressed.emit(idx)
 			get_viewport().set_input_as_handled()
+
+
+## 返回 true 表示这次事件已被拖拽消费掉。
+func _handle_drag(event: InputEvent) -> bool:
+	var mp := get_global_mouse_position()
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			var id := _pick_building(mp)
+			if id == "":
+				return false
+			_drag_id = id
+			_drag_moved = false
+			var sp: Sprite2D = _prop_nodes[id]
+			_drag_off = sp.position - mp
+			get_viewport().set_input_as_handled()
+			return true
+		if _drag_id != "":
+			# 松手：吸附到 0.5 格后写进 state
+			var sp: Sprite2D = _prop_nodes.get(_drag_id, null)
+			if sp != null and is_instance_valid(sp):
+				var g := Vector2(roundf(sp.position.x / TILE * 2.0) * 0.5,
+					roundf(sp.position.y / TILE * 2.0) * 0.5)
+				_game.move_site(_drag_id, g)
+			_drag_id = ""
+			get_viewport().set_input_as_handled()
+			return true
+		return false
+
+	if event is InputEventMouseMotion and _drag_id != "":
+		var sp: Sprite2D = _prop_nodes.get(_drag_id, null)
+		if sp != null and is_instance_valid(sp):
+			# 拖动中只搬精灵；松手才提交，免得每帧广播 state_changed
+			sp.position = mp + _drag_off
+			_drag_moved = true
+			get_viewport().set_input_as_handled()
+			return true
+	return false
