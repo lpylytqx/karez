@@ -171,11 +171,13 @@ func sync() -> void:
 
 
 ## 更新工作地点上方的人数标签。
+## **默认全部隐藏，只在鼠标悬停到该地点时显示** —— 和人物名字牌一致的做法。
+## 这样地图平时是干净的，需要查的时候把鼠标移过去就行。
 func _refresh_badges() -> void:
 	for jid in ORDER:
 		var n := int(_game.job_count(jid)) if _game != null else 0
 		var lbl: Label = _badges[jid]
-		if n <= 0:
+		if n <= 0 or jid != _hover_job:
 			lbl.visible = false
 			continue
 		lbl.text = "%s %d" % [JOB_CN.get(jid, jid), n]
@@ -187,7 +189,30 @@ func _refresh_badges() -> void:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
+## 鼠标落在哪个工作地点上（返回岗位 id，没有则空串）。
+## 判定区比标签本身大一圈，否则要精准指到 16px 的精灵上才显示，太难点。
+func _hover_workplace() -> String:
+	if _game == null:
+		return ""
+	var mp := get_global_mouse_position()
+	for jid in ORDER:
+		if int(_game.job_count(str(jid))) <= 0:
+			continue
+		var p := _workplace_pos(str(jid), 0)
+		if Rect2(p - Vector2(40.0, 34.0), Vector2(80.0, 60.0)).has_point(mp):
+			return str(jid)
+	return ""
+
+
+var _hover_job := ""
+
 func _process(delta: float) -> void:
+	# 悬停判定也要每帧跑（人数标签靠它显隐）
+	var hj := _hover_workplace()
+	if hj != _hover_job:
+		_hover_job = hj
+		_refresh_badges()
+
 	for w in _workers:
 		var sp: Sprite2D = w["sprite"]
 		if not is_instance_valid(sp):

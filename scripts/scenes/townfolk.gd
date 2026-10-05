@@ -134,6 +134,8 @@ func _make_person(cid: String) -> void:
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 默认隐藏 —— 只在鼠标悬停到本人身上时显示（用户的要求）
+	lbl.visible = false
 	# ⚠ z_index 必须显式抬高，而且要关掉 z_as_relative。
 	# 这不是可有可无的保险：Control 的 z_index 默认是 0，而竖井那类道具
 	# 的 z_index 是 1~4 —— 名牌压在竖井口上时会被整个盖住。
@@ -234,23 +236,20 @@ func _process(_delta: float) -> void:
 	for f in _folk:
 		var cid := str(f["id"])
 		var lbl: Label = f["label"]
-		var hot := (cid == near or cid == hov)
-		# 两档外观。平时小字号 + 淡底衬，靠近才放大变绿 ——
-		# 五块牌子都用满字号加深底衬时，会连成一条横贯地图的深色带。
-		lbl.add_theme_font_size_override("font_size", FONT_HOT if hot else FONT_IDLE)
-		var w := W_HOT if hot else W_IDLE
+		# ── 默认全隐藏，只在鼠标悬停到本人身上时显示 ──
+		# 用户的要求。这也是最省心的做法：名字牌与精灵的对位问题
+		# 在「平时不显示」的前提下根本不存在，地图也彻底干净了。
+		var hot := (cid == hov)
+		lbl.visible = hot
+		if not hot:
+			continue
+		lbl.add_theme_font_size_override("font_size", FONT_HOT)
+		var w := W_HOT
 		lbl.custom_minimum_size = Vector2(w, H_LBL)
 		lbl.size = Vector2(w, H_LBL)
 		lbl.position.x = Vector2(f["base"]).x - w * 0.5
 		var sb: StyleBoxFlat = lbl.get_theme_stylebox("normal")
 		if sb is StyleBoxFlat:
-			sb.bg_color = Color(0.10, 0.08, 0.06, BG_HOT if hot else BG_IDLE)
-		if cid == near:
-			lbl.text = "%s ◂E" % _display(cid)
-			lbl.add_theme_color_override("font_color", NEAR_COLOR)
-		elif cid == hov:
-			lbl.text = "%s ◂点" % _display(cid)
-			lbl.add_theme_color_override("font_color", NEAR_COLOR)
-		else:
-			lbl.text = _display(cid)
-			lbl.add_theme_color_override("font_color", NAME_COLOR)
+			sb.bg_color = Color(0.10, 0.08, 0.06, BG_HOT)
+		lbl.text = "%s ◂点" % _display(cid)
+		lbl.add_theme_color_override("font_color", NEAR_COLOR)
