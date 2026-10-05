@@ -1,0 +1,95 @@
+# 《坎儿井》—— 忽略规则
+# ⚠️ 这个仓库永远不能出现任何 API 密钥的痕迹。见下方 .env 段落。
+
+# ---- 密钥与本地配置（最重要）----
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*key*.txt
+*secret*
+config_local.py
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.dsh-pyenv/
+*.egg-info/
+.pytest_cache/
+
+# ---- Godot ----
+.godot/
+*.translation
+export_presets.cfg
+# C# 构建产物
+.mono/
+data_*/
+*.sln
+*.csproj
+bin/
+obj/
+
+# ---- 运行时产物 ----
+logs/
+*.log
+saves/
+*.tmp
+.ai_cache/
+
+# ---- 编辑器与系统 ----
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp
+
+# ---- 大体积素材（按需解注）----
+# 若美术素材过大无法进 git，解注下面几行，改用网盘/Release 分发。
+# assets/audio/*.ogg
+# assets/portraits/*.png
+
+# ---- Godot 可执行文件（⚠ 必须忽略）----
+# tools/Godot_v4.7.2-stable_win64.exe 有 172MB，超过 GitHub 单文件 100MB 上限，
+# 提交后推送必然失败。Godot 请按 README「怎么跑起来」一节的说明另行下载。
+tools/
+*.exe
+!scripts/**/*.exe
+
+# ---- 素材原料与中间产物（不进版本控制）----
+# assets/README.md 规定：_raw/ 是 AI/素材包原始输出，_wip/ 是处理中的，_reference/ 是参考图
+assets/_raw/
+assets/_wip/
+assets/_reference/
+
+# ---- 本地环境与笔记 ----
+.dsh-notes/
+.dsh-pyenv/
+
+# ---- Godot 导入缓存（体积大且可重建）----
+scripts/.godot/
+**/.godot/
+
+# ---- scripts/ 下的目录联接（⚠ 关键：避免素材被提交两遍）----
+# project.godot 里用 junction 把 assets 挂到工程根，方便 res:// 直接访问。
+# 但 git 会跟着 junction 走，把同一批素材在 assets/ 和 scripts/ 各存一份
+# （实测重复 178.4 MB）。这些内容以 assets/ 下那一份为准，scripts/ 侧全部忽略。
+scripts/audio/
+scripts/buildings/
+scripts/characters/
+scripts/fonts/
+scripts/fx/
+scripts/tiles/
+scripts/ui/*.png
+scripts/ui/*.import
+
+# ---- 字体分发包与临时产物 ----
+*.zip
+_verify_capture.png
+
+

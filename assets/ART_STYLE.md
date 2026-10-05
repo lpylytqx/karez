@@ -1,0 +1,263 @@
+# 《坎儿井》美术画风规范
+
+> 这份文件是**唯一的美术风格真源**。无论你是自己画、买素材、还是用 AI 生成，
+> 每一张图都必须满足本文的规格与色板。不符合的图不要进 `assets/`。
+
+配套文件：[需求清单与优先级](D:\坎儿井\docs\04-art-checklist.md)（要多少张、什么优先级）。
+
+---
+
+## 一、结论先行：画风定案
+
+| 项 | 决定 |
+|---|---|
+| 风格 | **温暖像素风**（16 位色感，非极简、非写实） |
+| 视角 | **俯视 45°**（2.5D 感），据点经营与探索共用同一套格子 |
+| 逻辑分辨率 | **640 × 360**（若要大量中文 UI，改 960×540，见第五节） |
+| 缩放 | 整数倍，默认 **2×**（输出 1280×720） |
+| 调色 | **32 色以内**，按第二节色板 |
+| 描边 | 无硬描边，用**明暗塑造体积**（`#8B6B47` 作暗部，不用纯黑） |
+| 光照 | 统一光源来自**左上**，所有图的受光面朝左上 |
+| 质感 | 略微粗糙、有颗粒感。不要光滑渐变，不要抗锯齿 |
+
+**为什么选像素风**：对 1 人开发，手绘风对动画帧数的要求会让工作量涨 2.5–3 倍（见需求清单第六节）。像素风用 4 帧就能做出走路的可信感。
+
+---
+
+## 二、色板（32 色，硬约束）
+
+直接复制这段 hex 作为任何生成器或画师的约束条件。**超出这个色板的图不算合格。**
+
+### 环境主色
+
+| 用途 | Hex | 说明 |
+|---|---|---|
+| 沙漠亮面 | `#E8C79A` | 受光的沙丘顶 |
+| 沙漠主色 | `#D9B382` | 基调，占比最大 |
+| 沙漠暗面 | `#B8935F` | 背光面、沙丘阴影 |
+| 戈壁碎石 | `#A88E6B` | 碎石地与沙的过渡 |
+| 生土建筑亮 | `#DFC398` | 夯土墙受光面 |
+| 生土建筑主 | `#C9A277` | 建筑主体，识别度最高的色 |
+| 生土建筑暗 | `#9E7C55` | 墙脚、屋檐下 |
+| 木/葡萄架 | `#8B6B47` | 梁柱、葡萄架、门板 |
+| 木暗部 | `#6B4F33` | 木材背光 |
+
+### 绿洲（"生长感"的关键）
+
+| 用途 | Hex | 说明 |
+|---|---|---|
+| 草地贫 | `#8A9B62` | 刚开垦，稀疏 |
+| 草地中 | `#6E8F55` | 中等 |
+| 草地茂 | `#5A8F6B` | 茂盛，与沙漠形成强对比 |
+| 植物暗 | `#3F6B4C` | 树冠阴影 |
+| 作物绿 | `#7FA34A` | 幼苗 |
+| 作物黄绿 | `#B5B04E` | 成熟中的麦 |
+| 作物金 | `#D4A93C` | 成熟，收割前 |
+
+### 水（核心资源，必须一眼可读）
+
+| 用途 | Hex | 说明 |
+|---|---|---|
+| 水面亮 | `#8FC7D6` | 反光、浅水 |
+| 水面主 | `#5A9CB0` | 明渠与涝坝 |
+| 水面暗 | `#3A7086` | 深水、暗渠 |
+| 雪水白 | `#E8EEF2` | 雪山、浪花 |
+| 涝坝浑浊 | `#7A8B78` | 蓄水池（不必清澈，真实感更好） |
+
+### 火焰山与危险
+
+| 用途 | Hex | 说明 |
+|---|---|---|
+| 赭红主 | `#A8522F` | 火焰山岩体、战斗强调 |
+| 赭红亮 | `#C9704A` | 受光面 |
+| 危险红 | `#8C3A2A` | 战斗警示 UI |
+
+### UI
+
+| 用途 | Hex | 说明 |
+|---|---|---|
+| UI 底 | `#2B2118` | 深褐，**不要纯黑**；半透明时 85% 不透明 |
+| UI 底亮 | `#3D3024` | 面板内部分区 |
+| UI 边框 | `#8B6B47` | 与木质统一 |
+| 文字 | `#F0E4D0` | 米白，保证可读 |
+| 文字次要 | `#B5A48C` | 说明文字 |
+| 强调金 | `#E0A43C` | 选中、高亮、按钮悬停 |
+| 成功绿 | `#6E9E5A` | 正向反馈 |
+| 深色轮廓 | `#1E1812` | 用于需要轮廓的 UI 元素 |
+
+> 共 32 色。**新增颜色必须删掉一个旧的**，否则风格会散。
+
+---
+
+## 三、AI 生成：统一 prompt 模板
+
+风格漂移是 AI 出图最大的问题。对策是**只改主体词，风格词逐字不变**。
+
+### 模板（把 `{主体}` 换掉，其余不动）
+
+```
+2D pixel art game asset, top-down 45-degree view, {主体},
+16-bit SNES era aesthetic, limited 32-color palette,
+warm desert and oasis tones, no hard outlines, soft volumetric shading,
+light source from upper-left, slight grain texture,
+transparent background, centered, sprite sheet style,
+crisp pixels, no anti-aliasing, no blur
+```
+
+### 各类型的主体词写法
+
+| 类型 | `{主体}` 怎么写 | 附加尾巴 |
+|---|---|---|
+| 地形块 | `seamless tileable sand dune texture, 16x16 pixels` | 加 `seamless tileable` |
+| 建筑 | `Uyghur-style earthen inn building with flat roof, 64x64 pixels` | 加 `isometric-friendly front-facing` |
+| 角色 | `elderly craftsman character sprite, 16x24 pixels, 4-direction walk cycle` | 加 `character sprite sheet, rows for 4 directions` |
+| 立绘 | `portrait bust of an elderly craftsman, warm expression, 512x512` | **去掉** `pixel art`，改 `painterly, warm color scheme` |
+| UI 图标 | `simple icon of a water drop, 16x16 pixels, high contrast` | 加 `flat with 2 tones only` |
+
+### ⚠️ 立绘是例外
+
+立绘**不要做像素风**。512×512 手绘感立绘 + 像素风地图是常见且好看的组合（参考《八方旅人》思路）。
+所以 `characters/portraits/` 用另一套模板：
+
+```
+warm painterly character portrait, bust shot, {角色描述},
+visible brush strokes, limited warm palette (#D9B382 #C9A277 #8B6B47 #A8522F #E0A43C),
+soft rim light from upper-left, plain dark background,
+Chinese Central Asian historical setting, no text, no watermark
+```
+
+各角色的外形描述见 [characters.json](D:\坎儿井\data\characters.json) 的 `portrait_spec` 字段——那里已写好了。
+
+---
+
+## 四、必须做的统一后处理（不做这步，AI 图必散架）
+
+生成出来的图**不能直接用**。跑一次批量后处理：
+
+| 步骤 | 做什么 | 为什么 |
+|---|---|---|
+| 1 | **降色到本文的 32 色板** | 这是风格统一的决定性一步 |
+| 2 | 最近邻缩放（Nearest Neighbor）到目标尺寸 | 像素风禁止双线性，否则糊 |
+| 3 | 关闭抗锯齿 / 清理半透明边缘像素 | AI 图边缘常有灰边，放大后很脏 |
+| 4 | 裁掉多余留白，锚点对齐到底部中心 | 建筑与角色要能站在格子上 |
+| 5 | 转 PNG（不要 JPG） | JPG 有压缩伪影，像素图全毁 |
+
+**第 3 步的具体做法**：把 alpha 值低于 128 的像素直接置为全透明，高于 128 的置为全不透明。AI 生成的半透明边缘在像素风里是致命的。
+
+这一步我可以给你写成一个 Python 脚本（`pillow` 就够）。**你说一声我就写。**
+
+---
+
+## 五、逻辑分辨率：一个需要你现在决定的事
+
+| | 640 × 360 + 2× | 960 × 540 + 2× |
+|---|---|---|
+| 像素颗粒感 | 强，复古 | 略弱 |
+| 中文 UI 可读性 | **差**（12px 汉字会糊） | 好 |
+| 地图格 | 16×16 | 24×24 或 32×32 |
+| 工作量 | 基准 | +30（同样的画面要更多像素） |
+
+**我的建议**：如果 UI 里中文多（本作大概率是），**选 960×540**。
+640×360 下 12px 汉字会糊成一团，这是像素风 + 中文的固有矛盾，没有技巧能绕开。
+
+**但有一个例外情况**：如果用**点阵像素中文字体**，640×360 也能读。
+方舟像素字体提供 10px / 12px 两档，缝合像素字体提供 8/10/12px——
+它们是专门为像素尺寸设计的点阵字形，在 12px 下笔画像素清晰，
+和普通矢量字体缩到 12px 的效果完全不同。
+
+所以真正的决策路径是：
+
+| 你的选择 | 建议分辨率 |
+|---|---|
+| UI 中文用矢量字体（思源黑体等） | **960 × 540** |
+| UI 中文用点阵像素字体（方舟/缝合像素） | **640 × 360 可行**，先出几张试看 |
+
+已在 `scripts/project.godot` 里按 1280×720 窗口 + 整数缩放配置，改分辨率时同步改那里。
+
+### 字体来源（已核实授权）
+
+| 字体 | 授权 | 用途 |
+|---|---|---|
+| **方舟像素字体** `ark-pixel-font.takwolf.com` | SIL OFL 1.1 | **像素风首选**，10px/12px，泛拉丁+泛 CJK |
+| **缝合像素字体** `fusion-pixel-font.takwolf.com` | SIL OFL 1.1（代码 MIT） | 像素风备选，8/10/12px |
+| 思源黑体 / 思源宋体 | SIL OFL 1.1 | 矢量方案，最稳 |
+| 霞鹜文楷 | SIL OFL 1.1 | 有手写感，适合叙事文本 |
+| 得意黑 Smiley Sans | SIL OFL 1.1 | 标题用 |
+| MiSans | 厂商自有许可，可免费商用 | 允许嵌入，**须注明使用了 MiSans** |
+| 阿里巴巴普惠体 | 厂商自有许可，可免费商用 | 非 OFL，条款清晰 |
+
+### ⚠️ 不要用 Zpix（最像素）
+
+中文网上大量文章说"Zpix 免费可商用"——**已经过期**。
+作者仓库（github.com/SolidZORO/zpix-pixel-font）的 License and Pricing 段落写明：
+商用（单产品）**USD $1000**。
+
+搜"像素中文字体 免费商用"时它通常排第一个，是像素风游戏最容易踩的字体坑。
+**改用方舟像素字体或缝合像素字体。**
+
+> 这条由调研任务发现并引用仓库原文，但本机 github.com 直连被阻断，我未能亲自复核。
+> 你下载字体时顺手打开那个仓库看一眼即可确认。
+
+### 站酷字体也已变成双轨
+
+"站酷字体全部免费商用"同样已过期。站酷高端黑、站酷酷黑体仍写明免费授权全社会使用（包括商用），
+但字库主页现在默认展示付费字体（型丽体、妙典风云体等为"免费试用"+ 企业授权）。
+用前逐个确认具体那一个。
+
+---
+
+## 六、目录 ↔ 需求清单对照
+
+| 目录 | 放什么 | 需求清单对应章节 | 数量（P0） |
+|---|---|---|---|
+| `tiles/terrain/` | 沙漠、戈壁、草地、雪山、道路、悬崖 | §2.1 | 38 |
+| `tiles/farmland/` | 田地三阶段、作物 | §2.1 | 12 |
+| `tiles/water/` | 明渠、涝坝水面、暗渠口、水流动画 | §2.1 | 7 |
+| `tiles/props/` | 树、灌木、石块、小道具 | §2.1 | 14 |
+| `buildings/` | 12 种建筑的建造阶段 | §2.2 | 35 |
+| `characters/walk/` | 行走图（4 方向 × 4 帧） | §2.3 | 65 帧 |
+| `characters/portraits/` | 立绘 512×512 | §2.3 | 7（+表情差分） |
+| `characters/units/` | 战斗单位（待机/攻击/受击） | §2.3 | 16 |
+| `ui/` | 九宫格框、按钮、面板 | §2.4 | 18 |
+| `ui/icons/` | 资源图标、建筑图标、季节图标 | §2.4 | 22 |
+| `fx/` | 水流、尘土、打击、沙暴 | §2.5 | 18 |
+| `audio/` | BGM / 环境音 / 音效 | §3 | 见该节 |
+| `fonts/` | 思源黑体等（**必须记录授权**） | §4 | — |
+| `_raw/` | AI 原始输出，未处理 | — | — |
+| `_wip/` | 处理中 | — | — |
+| `_reference/` | 参考图（博物馆影像等） | — | — |
+
+> `_raw/`、`_wip/`、`_reference/` 里的东西**不进 git**（已在 .gitignore 配置）。
+> 只有处理后放进正式目录的图才入库。
+
+---
+
+## 七、命名规范（定死，别随意改）
+
+```
+tiles/terrain/desert_light_01.png          地形_变体序号
+tiles/water/canal_straight_anim_06f.png    名称_用途_帧数f
+buildings/yiguan_stage_03.png              建筑名_阶段
+characters/walk/lao_kanjiang_walk_4dir.png 角色id_类型
+characters/portraits/lao_kanjiang_base.png 角色id_base|happy|angry
+ui/icons/icon_water.png                    icon_资源名
+fx/water/fx_flow_loop_06f.png              fx_名称_循环/单次_帧数
+```
+
+**角色 id 必须与 [characters.json](D:\坎儿井\data\characters.json) 完全一致**：
+`lao_kanjiang` / `muqam_yiren` / `hasake_qishou` / `hanshang_zhanggui` / `chuniang` / `shenmi_lvren` / `mafei_toumu`
+建筑名必须与 [numbers.json](D:\坎儿井\data\numbers.json) 的 `buildings.list[].id` 一致。
+这样代码就能按 id 自动找图，不用手工维护映射表。
+
+---
+
+## 八、授权登记（赛事合规，不能省）
+
+每引入一个素材（含字体、音效、参考图），在 [asset-licenses.md](D:\坎儿井\docs\asset-licenses.md) 记一行：
+
+```
+文件路径 | 来源 URL | 授权类型 | 授权证明文件 | 录入日期
+```
+
+**AI 生成的图也要记**：记下生成工具、日期、使用的 prompt。赛事若质询图片来源，这是你的凭据。
+参考图（如博物馆公开影像）只能放 `_reference/`，**绝不能直接用在游戏里**。

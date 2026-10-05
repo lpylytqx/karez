@@ -1,0 +1,135 @@
+{
+  "$comment": "AI 输出的内容契约。Python 服务与 Godot 客户端共用同一份定义。",
+  "schema_version": "1.0",
+
+  "delta_whitelist": {
+    "$comment": "state_delta 只允许作用于这些路径前缀。白名单之外一律丢弃。",
+    "allowed_prefixes": [
+      "resources.silver",
+      "resources.food.",
+      "resources.materials.",
+      "resources.water.current",
+      "karez.flow_bonus",
+      "karez.reservoir_level",
+      "stats.reputation",
+      "stats.morale",
+      "stats.security",
+      "characters."
+    ],
+    "allowed_path_suffixes": [".affinity", ".mood"],
+    "allowed_ops": ["add", "sub", "set", "mul"],
+    "$comment_magnitude": "单次 delta 绝对值上限。超过则视为模型幻觉，丢弃该条。",
+    "max_abs_value": 25,
+    "max_items_per_response": 8,
+    "clamp_ranges": {
+      "resources.water.current": [0, "capacity"],
+      "resources.silver": [0, 999999],
+      "stats.reputation": [0, 100],
+      "stats.morale": [0, 100],
+      "stats.security": [0, 100],
+      "characters.*.affinity": [-100, 100],
+      "characters.*.mood": [0, 100]
+    }
+  },
+
+  "response_schema": {
+    "$comment": "这是模型必须返回的 JSON 结构。用于校验（不是用于 strict 模式——strict 不支持数组长度约束，且本项目关闭思考模式后 JSON 模式已足够）。",
+    "type": "object",
+    "required": ["narration"],
+    "properties": {
+      "narration": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400,
+        "$comment": "角色说的话与做的动作。中文 120 字以内为佳，上限放宽到 400 以防截断丢内容。"
+      },
+      "emotion": {
+        "type": "string",
+        "enum": ["平静", "高兴", "不满", "愤怒", "忧虑", "兴奋", "戒备", "悲伤"]
+      },
+      "intent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["none", "request", "offer", "refuse", "warn", "agree", "reveal"]
+          },
+          "detail": { "type": "string", "maxLength": 120 }
+        }
+      },
+      "state_delta": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "required": ["op", "path"],
+          "properties": {
+            "op": { "type": "string", "enum": ["add", "sub", "set", "mul"] },
+            "path": { "type": "string" },
+            "value": { "type": "number" }
+          }
+        }
+      },
+      "memory_append": {
+        "type": "array",
+        "maxItems": 3,
+        "items": { "type": "string", "maxLength": 120 }
+      },
+      "suggestions": {
+        "type": "array",
+        "maxItems": 3,
+        "items": { "type": "string", "maxLength": 24 }
+      }
+    }
+  },
+
+  "validation_pipeline": [
+    { "step": 1, "name": "json_parse", "on_fail": "重试一次（提示词追加『只输出合法 json』），仍失败则走 demo 兜底" },
+    { "step": 2, "name": "required_fields", "on_fail": "缺失 narration 则整条丢弃" },
+    { "step": 3, "name": "delta_whitelist_filter", "on_fail": "逐条丢弃不合规的 delta，保留其余的" },
+    { "step": 4, "name": "magnitude_clamp", "on_fail": "超幅度的 delta 按上限截断而非丢弃（保留意图强度）" },
+    { "step": 5, "name": "client_reclamp", "on_fail": "Godot 侧应用 delta 时再次夹紧到合法区间" }
+  ],
+
+  "internal_message_schema": {
+    "$comment": "Godot 与 Python 之间的信封（不同于模型输出）。",
+    "request": {
+      "type": "object",
+      "required": ["schema_version", "scene", "player_input"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "1.0" },
+        "scene": { "type": "string", "enum": ["karez_work", "bazaar", "battle", "exploration", "negotiation", "idle"] },
+        "player_input": { "type": "string", "maxLength": 500 },
+        "context": { "type": "object" },
+        "speaker": { "type": "object" },
+        "memory": { "type": "array", "items": { "type": "string" }, "maxItems": 13 },
+        "recent": { "type": "array", "items": { "type": "string" }, "maxItems": 8 }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": ["schema_version", "narration"],
+      "properties": {
+        "schema_version": { "type": "string" },
+        "narration": { "type": "string" },
+        "speaker": { "type": "string" },
+        "state_delta": { "type": "array" },
+        "memory_append": { "type": "array" },
+        "suggestions": { "type": "array" },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "mode": { "type": "string", "enum": ["live", "demo"] },
+            "model": { "type": "string" },
+            "latency_ms": { "type": "number" },
+            "tokens_in": { "type": "number" },
+            "tokens_out": { "type": "number" },
+            "cache_hit_tokens": { "type": "number" },
+            "dropped_deltas": { "type": "number" },
+            "retried": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

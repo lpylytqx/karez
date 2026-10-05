@@ -1,0 +1,12 @@
+# 《坎儿井》AI 旁挂服务依赖
+# 安装：<venv>\Scripts\python.exe -m pip install -r ai_backend/requirements.txt
+#
+# 刻意保持极简。只用 httpx 直连 DeepSeek 的 OpenAI 兼容端点，
+# 不引入 openai SDK —— 因为本项目必须传 thinking 参数，
+# 走 SDK 要绕 extra_body，直连 HTTP 更透明、更少黑盒。
+
+httpx>=0.27
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-dotenv>=1.0
+pydantic>=2.9

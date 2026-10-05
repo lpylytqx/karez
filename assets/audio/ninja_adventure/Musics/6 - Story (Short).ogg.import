@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://b6in308l6aclo"
+path="res://.godot/imported/6 - Story (Short).ogg-b01bc6a2bd90d88b6dd0628b8e5e0589.oggvorbisstr"
+
+[deps]
+
+source_file="res://audio/ninja_adventure/Musics/6 - Story (Short).ogg"
+dest_files=["res://.godot/imported/6 - Story (Short).ogg-b01bc6a2bd90d88b6dd0628b8e5e0589.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

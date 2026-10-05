@@ -1,0 +1,449 @@
+extends Node
+## 游戏状态与 AI 通信（GDScript 主线实现）。
+##
+## 职责边界（严格遵守）：
+##   ✅ 持有权威状态、读取 data/numbers.json、应用 AI 返回的 state_delta
+##   ✅ 向 Python 服务发 HTTP 请求，失败时静默降级为离线模式
+##   ❌ 不做 prompt 拼装（那是 Python 的事）
+##   ❌ 不做数值平衡调整（数值只在 numbers.json 里改）
+
+signal response_received(payload: Dictionary)
+signal request_failed(reason: String)
+signal state_changed()
+
+const DEFAULT_AI_HOST := "127.0.0.1"
+const DEFAULT_AI_PORT := 8787
+const SCHEMA_VERSION := "1.0"
+
+## 设为 true 则完全跳过网络请求，直接用预设内容。
+## 演示时若担心网络，把它打开即可 100% 确定不冷场。
+@export var offline_mode := false
+
+var numbers: Dictionary = {}
+var state: Dictionary = {}
+var player_character := "lao_kanjiang"
+
+var _http: HTTPRequest
+var _pending_speaker := ""
+var _pending_recent: Array = []
+
+
+func _ready() -> void:
+	numbers = _load_numbers()
+	state = _initial_state()
+	_http = HTTPRequest.new()
+	_http.timeout = 60.0
+	add_child(_http)
+	_http.request_completed.connect(_on_request_completed)
+
+
+# ---------------------------------------------------------------------------
+# 数值与状态
+# ---------------------------------------------------------------------------
+
+func _load_numbers() -> Dictionary:
+	for path in ["res://../data/numbers.json", "res://data/numbers.json"]:
+		if FileAccess.file_exists(path):
+			var text := FileAccess.get_file_as_string(path)
+			var parsed = JSON.parse_string(text)
+			if parsed is Dictionary:
+				return parsed
+			push_error("numbers.json 解析失败: %s" % path)
+	push_warning("未找到 numbers.json，使用内置极简数值。请确认 data/ 目录与 scripts/ 处于同一父目录。")
+	return _fallback_numbers()
+
+
+func _fallback_numbers() -> Dictionary:
+	return {
+		"karez": {"flow_per_section": 55,
+			"season_melt_multiplier": {
+				"spring": 1.0, "summer": 1.4, "autumn": 0.85, "winter": 0.45},
+			"season_flow_bonus": {"winter": -3}},
+		"population": {"daily_consumption": {"water_per_person": 3.0, "food_per_person": 3}},
+		"resources": {
+			"water": {"initial": {"current": 90, "capacity": 300, "flow_per_day": 5}},
+			"food": {"initial": {"naan": 40, "grain": 30, "meat": 8}},
+			"materials": {"initial": {"wood": 30, "earth": 50, "tools": 4}},
+			"silver": {"initial": 40},
+		},
+	}
+
+
+func _initial_state() -> Dictionary:
+	var res_cfg: Dictionary = numbers.get("resources", {})
+	var food_cfg: Dictionary = res_cfg.get("food", {}).get("initial", {})
+	var mat_cfg: Dictionary = res_cfg.get("materials", {}).get("initial", {})
+	var water_cfg: Dictionary = res_cfg.get("water", {}).get("initial", {})
+
+	return {
+		"calendar": {"day": 1, "season": "spring", "phase": "morning"},
+		"karez": {"sections": 0, "flow_per_day": 0, "sections_days_left": 0},
+		"resources": {
+			"water": {
+				"current": float(water_cfg.get("current", 90)),
+				"capacity": float(water_cfg.get("capacity", 300)),
+				# base_flow：旱季残存渗流。不是可消耗的库存，是每日入账的一部分，
+				# 所以单独存字段而不是塞进 current。开局 5 方/天。
+				"base_flow": float(water_cfg.get("flow_per_day", 5)),
+			},
+			"food": {
+				"naan": float(food_cfg.get("naan", 40)),
+				"grain": float(food_cfg.get("grain", 30)),
+				"fruit": float(food_cfg.get("fruit", 0)),
+				"meat": float(food_cfg.get("meat", 8)),
+				"milk": float(food_cfg.get("milk", 0)),
+			},
+			"materials": {
+				"wood": float(mat_cfg.get("wood", 30)),
+				"earth": float(mat_cfg.get("earth", 50)),
+				"cloth": float(mat_cfg.get("cloth", 5)),
+				"tools": float(mat_cfg.get("tools", 4)),
+			},
+			"silver": float(res_cfg.get("silver", {}).get("initial", 40)),
+		},
+		"population": 6,
+		"stats": {"prosperity": 5.0, "reputation": 10.0, "morale": 55.0, "security": 40.0},
+		"characters": {
+			"lao_kanjiang": {"affinity": 0.0, "mood": 60.0, "memory": []},
+			"muqam_yiren": {"affinity": 0.0, "mood": 70.0, "memory": []},
+			"hasake_qishou": {"affinity": 0.0, "mood": 65.0, "memory": []},
+			"hanshang_zhanggui": {"affinity": 0.0, "mood": 60.0, "memory": []},
+			"chuniang": {"affinity": 0.0, "mood": 70.0, "memory": []},
+			"shenmi_lvren": {"affinity": 0.0, "mood": 55.0, "memory": []},
+			"mafei_toumu": {"affinity": 0.0, "mood": 60.0, "memory": []},
+		},
+		"flags": {},
+	}
+
+
+# ---------------------------------------------------------------------------
+# 与 Python 服务通信
+# ---------------------------------------------------------------------------
+
+func send(player_input: String, speaker: String = "", recent: Array = []) -> bool:
+	if player_input.strip_edges().is_empty():
+		return false
+	if _http.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		request_failed.emit("上一个请求还没回来，稍等")
+		return false
+
+	_pending_speaker = speaker
+	_pending_recent = recent
+
+	if offline_mode:
+		request_failed.emit("offline_mode 已开启")
+		return false
+
+	var body := {
+		"schema_version": SCHEMA_VERSION,
+		"scene": "karez_work",
+		"player_input": player_input,
+		"character_id": speaker if speaker != "" else player_character,
+		"context": build_context_for_ai(speaker),
+		"memory": get_memory(speaker if speaker != "" else player_character),
+		"recent": recent,
+	}
+	var url := "http://%s:%d/narrate" % [_ai_host(), _ai_port()]
+	var err := _http.request(
+		url,
+		["Content-Type: application/json"],
+		HTTPClient.METHOD_POST,
+		JSON.stringify(body)
+	)
+	if err != OK:
+		request_failed.emit("HTTP 请求发起失败 (err %d)" % err)
+		return false
+	return true
+
+
+func _ai_host() -> String:
+	var from_env := OS.get_environment("AI_HOST")
+	return from_env if from_env != "" else DEFAULT_AI_HOST
+
+
+func _ai_port() -> int:
+	var from_env := OS.get_environment("AI_PORT")
+	return int(from_env) if from_env != "" else DEFAULT_AI_PORT
+
+
+func _on_request_completed(
+	result: int, code: int, _headers: PackedStringArray, body: PackedByteArray
+) -> void:
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		request_failed.emit("AI 服务无响应 (result=%d, http=%d)" % [result, code])
+		return
+
+	var text := body.get_string_from_utf8()
+	var parsed = JSON.parse_string(text)
+	if not (parsed is Dictionary):
+		request_failed.emit("AI 服务返回的不是合法 JSON")
+		return
+
+	apply_response(parsed)
+
+
+## 应用 AI 返回：先改数值，再记记忆，最后广播。
+func apply_response(payload: Dictionary) -> void:
+	var deltas = payload.get("state_delta", [])
+	if deltas is Array:
+		apply_deltas(deltas)
+
+	for entry in payload.get("memory_append", []):
+		if entry is String and entry != "":
+			add_memory(_pending_speaker if _pending_speaker != "" else player_character, entry)
+
+	clamp_all()
+	response_received.emit(payload)
+	state_changed.emit()
+
+
+# ---------------------------------------------------------------------------
+# state_delta 应用（白名单 + 幅度夹紧，与 Python 侧同规则）
+# ---------------------------------------------------------------------------
+
+const MAX_DELTA := 25.0
+const ALLOWED_PREFIXES := [
+	"resources.silver", "resources.food.", "resources.materials.",
+	"resources.water.current", "stats.reputation", "stats.morale",
+	"stats.security", "characters.",
+]
+
+
+func apply_deltas(deltas: Array) -> int:
+	## 返回成功应用的条数。不合规的静默丢弃并打日志。
+	var applied := 0
+	for d in deltas:
+		if not (d is Dictionary):
+			continue
+		var op: String = str(d.get("op", ""))
+		var path: String = str(d.get("path", ""))
+		var raw = d.get("value", null)
+
+		if op not in ["add", "sub", "set", "mul"]:
+			push_warning("丢弃 delta：非法 op %s" % op)
+			continue
+		if not _path_allowed(path):
+			push_warning("丢弃 delta：路径不在白名单 %s" % path)
+			continue
+		if not (raw is float or raw is int) or raw is bool:
+			push_warning("丢弃 delta：value 非数值 %s" % str(raw))
+			continue
+
+		var value := clampf(float(raw), -MAX_DELTA, MAX_DELTA)
+		if not _set_path(path, op, value):
+			push_warning("丢弃 delta：写入失败 %s" % path)
+			continue
+		applied += 1
+	return applied
+
+
+func _path_allowed(path: String) -> bool:
+	for prefix in ALLOWED_PREFIXES:
+		if path.begins_with(prefix):
+			return true
+	return false
+
+
+func _set_path(path: String, op: String, value: float) -> bool:
+	var parts := path.split(".")
+	if parts.size() < 2:
+		return false
+
+	# 特殊处理：characters.<id>.affinity / .mood
+	if parts[0] == "characters":
+		if parts.size() != 3:
+			return false
+		var cid := parts[1]
+		var field := parts[2]
+		if not state["characters"].has(cid):
+			state["characters"][cid] = {"affinity": 0.0, "mood": 60.0, "memory": []}
+		var entry: Dictionary = state["characters"][cid]
+		var cur := float(entry.get(field, 0.0))
+		entry[field] = _apply_op(cur, op, value)
+		return true
+
+	# 通用路径
+	var cursor: Dictionary = state
+	for i in range(parts.size() - 1):
+		var key: String = parts[i]
+		if not cursor.has(key) or not (cursor[key] is Dictionary):
+			cursor[key] = {}
+		cursor = cursor[key]
+
+	var leaf: String = parts[parts.size() - 1]
+	var current := float(cursor.get(leaf, 0.0))
+	cursor[leaf] = _apply_op(current, op, value)
+	return true
+
+
+func _apply_op(current: float, op: String, value: float) -> float:
+	match op:
+		"add": return current + value
+		"sub": return current - value
+		"mul": return current * value
+		"set": return value
+	return current
+
+
+## 客户端侧夹紧 —— 契约要求的第二道闸门。
+func clamp_all() -> void:
+	var water: Dictionary = state["resources"]["water"]
+	water["current"] = clampf(float(water.get("current", 0.0)), 0.0, float(water.get("capacity", 300.0)))
+	state["resources"]["silver"] = maxf(0.0, float(state["resources"]["silver"]))
+	for key in ["prosperity", "reputation", "morale", "security"]:
+		state["stats"][key] = clampf(float(state["stats"][key]), 0.0, 100.0)
+	for cid in state["characters"]:
+		var c: Dictionary = state["characters"][cid]
+		c["affinity"] = clampf(float(c.get("affinity", 0.0)), -100.0, 100.0)
+		c["mood"] = clampf(float(c.get("mood", 60.0)), 0.0, 100.0)
+	state["population"] = maxi(0, int(state["population"]))
+	for kind in ["food", "materials"]:
+		for item in state["resources"][kind]:
+			state["resources"][kind][item] = maxf(0.0, float(state["resources"][kind][item]))
+
+
+# ---------------------------------------------------------------------------
+# 记忆
+# ---------------------------------------------------------------------------
+
+func get_memory(cid: String) -> Array:
+	var c: Dictionary = state["characters"].get(cid, {})
+	var mem: Array = c.get("memory", [])
+	return mem.slice(maxi(0, mem.size() - 8))
+
+
+func add_memory(cid: String, text: String) -> void:
+	if not state["characters"].has(cid):
+		state["characters"][cid] = {"affinity": 0.0, "mood": 60.0, "memory": []}
+	var mem: Array = state["characters"][cid].get("memory", [])
+	mem.append("[第%d天] %s" % [get_day(), text])
+	# 记忆上限 200 条，超出丢最旧的（对应 characters.json 的 recall_rule）
+	while mem.size() > 200:
+		mem.pop_front()
+	state["characters"][cid]["memory"] = mem
+
+
+# ---------------------------------------------------------------------------
+# 给 AI 的状态摘要（不是整包状态 —— 省 token 且防模型乱改）
+# ---------------------------------------------------------------------------
+
+func build_context_for_ai(speaker: String = "") -> Dictionary:
+	var ctx := {
+		"day": get_day(),
+		"season": state["calendar"]["season"],
+		"resources": {
+			"water": state["resources"]["water"]["current"],
+			"water_capacity": state["resources"]["water"]["capacity"],
+			"silver": state["resources"]["silver"],
+			"food": state["resources"]["food"],
+		},
+		"karez": {
+			"sections": state["karez"]["sections"],
+			"flow_per_day": state["karez"]["flow_per_day"],
+		},
+		"population": state["population"],
+		"stats": state["stats"],
+	}
+	if speaker != "" and state["characters"].has(speaker):
+		ctx["speaker_affinity"] = state["characters"][speaker]["affinity"]
+	return ctx
+
+
+# ---------------------------------------------------------------------------
+# 时间推进与每日结算（S2 阶段会大幅扩充）
+# ---------------------------------------------------------------------------
+
+func get_day() -> int:
+	return int(state["calendar"]["day"])
+
+
+## 推进一天：出水量入账、消耗扣除、季节轮转。
+func advance_day() -> void:
+	var karez_cfg: Dictionary = numbers.get("karez", {})
+	var sections := int(state["karez"]["sections"])
+	var melt: Dictionary = karez_cfg.get("season_melt_multiplier", {})
+	var season: String = state["calendar"]["season"]
+	# 融水倍率作用于「竖井出水 + 旱季残流」，另外再加减季节性的基础渗流修正。
+	var base_flow := float(state["resources"]["water"].get("base_flow", 0.0))
+	var bonus_cfg: Dictionary = karez_cfg.get("season_flow_bonus", {})
+	var season_bonus := float(bonus_cfg.get(season, 0.0)) if season in bonus_cfg else 0.0
+	var flow := (sections * float(karez_cfg.get("flow_per_section", 55)) + base_flow) \
+		* float(melt.get(season, 1.0)) + season_bonus
+
+	var pop_cfg: Dictionary = numbers.get("population", {}).get("daily_consumption", {})
+	var pop := int(state["population"])
+	var water_need := pop * float(pop_cfg.get("water_per_person", 3.0))
+	var food_need := pop * float(pop_cfg.get("food_per_person", 3))
+
+	state["karez"]["flow_per_day"] = flow
+	var water: Dictionary = state["resources"]["water"]
+	water["current"] = clampf(float(water["current"]) + flow - water_need, 0.0, float(water["capacity"]))
+
+	_consume_food(int(food_need))
+
+	# 缺水惩罚（对应 numbers.json 的 shortage_effect）
+	if float(water["current"]) <= 0.0:
+		state["stats"]["morale"] = maxf(0.0, float(state["stats"]["morale"]) - 3.0)
+
+	state["calendar"]["day"] = get_day() + 1
+	_roll_season()
+	clamp_all()
+	state_changed.emit()
+
+
+func _consume_food(amount: int) -> void:
+	var food: Dictionary = state["resources"]["food"]
+	var order := ["naan", "grain", "fruit", "meat", "milk"]
+	var remaining := amount
+	for key in order:
+		if remaining <= 0:
+			break
+		var have := int(food.get(key, 0.0))
+		var take: int = mini(have, remaining)
+		food[key] = float(have - take)
+		remaining -= take
+	if remaining > 0:
+		# 断粮：士气大跌
+		state["stats"]["morale"] = maxf(0.0, float(state["stats"]["morale"]) - 5.0)
+
+
+func _roll_season() -> void:
+	var days_per_season := 0
+	var cal: Dictionary = numbers.get("calendar", {})
+	days_per_season = int(cal.get("days_per_season", 30))
+	if days_per_season <= 0:
+		return
+	var idx := (get_day() - 1) / days_per_season
+	var seasons: Array = cal.get("seasons", ["spring", "summer", "autumn", "winter"])
+	state["calendar"]["season"] = seasons[int(idx) % seasons.size()]
+
+
+# ---------------------------------------------------------------------------
+# 存档（S3 阶段补 ai_log 以支持完整复现）
+# ---------------------------------------------------------------------------
+
+func save_to(path: String) -> bool:
+	var payload := {
+		"save_version": 1,
+		"seed": 0,
+		"state": state,
+	}
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_error("存档失败：%s" % path)
+		return false
+	f.store_string(JSON.stringify(payload, "  "))
+	f.close()
+	return true
+
+
+func load_from(path: String) -> bool:
+	if not FileAccess.file_exists(path):
+		return false
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary) or not parsed.has("state"):
+		return false
+	state = parsed["state"]
+	clamp_all()
+	state_changed.emit()
+	return true

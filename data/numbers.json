@@ -1,0 +1,1392 @@
+{
+  "meta": {
+    "name": "坎儿井 数值表",
+    "version": "1.0.0",
+    "schema_version": "1.0",
+    "note": "本文件是游戏数值的唯一真源。代码不得硬编码任何数值，一律从这里读取。所有公式以字符串 DSL 存放，注释说明设计意图。",
+    "tuning_goal": "水是最紧张的资源；玩家在春季开局约 7 天缓冲期内必须完成第一个坎儿井修复，否则失败。后期水的矛盾从『有无』转为『分配』（农业 vs 人口 vs 商队）。"
+  },
+  "calendar": {
+    "phases_per_day": [
+      "morning",
+      "afternoon",
+      "evening",
+      "night"
+    ],
+    "action_points_per_phase": 2,
+    "days_per_season": 30,
+    "seasons": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
+    "start": {
+      "day": 1,
+      "season": "spring",
+      "phase": "morning"
+    },
+    "note": "一年 120 天。选择回合/阶段制而非实时，是为了与 LLM 延迟共存（见 GDD 5.5）。"
+  },
+  "resources": {
+    "water": {
+      "display": "水",
+      "unit": "方",
+      "is_flow_and_stock": true,
+      "initial": {
+        "current": 90,
+        "capacity": 300,
+        "flow_per_day": 5,
+        "note": "开局 90 方 + 5 方/天旱季残流，对 6 人日耗 18 方 → 净消耗 13 方/天，缓冲 6.9 天。设计意图：给玩家约一周的犯错空间，但水每天都在可见地下降，必须立刻动手挖井。",
+        "hard_floor_note": "water.current 归零后并非立刻失败：先扣士气，再按 2%/天流失人口，第 10 天才判定失败。这 10 天窗口是刻意的——让玩家有机会用最后资源（卖物产买水、向部落借）翻盘。"
+      },
+      "hard_floor": 0,
+      "flow_formula": "sections * karez.flow_per_section * season_melt_multiplier",
+      "capacity_formula": "reservoir.capacity + channels * 110",
+      "shortage_effect": "water.current 归零后，每日 morale-3，然后人口以每日 2% 流失，第 10 天判定失败",
+      "tradeable": false,
+      "purchasable": {
+        "price_silver_per_unit": 2.0,
+        "requires": "商队在场且关系>=中立"
+      }
+    },
+    "food": {
+      "display": "食物",
+      "unit": "份",
+      "note": "一人一天消耗 3 份。分类存储但界面合并显示总量。",
+      "items": {
+        "naan": {
+          "display": "馕",
+          "nutrition": 1.0,
+          "shelf_life_days": 12,
+          "base_price": 1.0
+        },
+        "grain": {
+          "display": "粮食",
+          "nutrition": 1.0,
+          "shelf_life_days": 90,
+          "base_price": 0.7,
+          "is_raw": true
+        },
+        "fruit": {
+          "display": "瓜果",
+          "nutrition": 0.8,
+          "shelf_life_days": 8,
+          "base_price": 1.2,
+          "morale_bonus_per_serving": 0.5
+        },
+        "meat": {
+          "display": "肉",
+          "nutrition": 1.6,
+          "shelf_life_days": 4,
+          "base_price": 2.5
+        },
+        "milk": {
+          "display": "奶",
+          "nutrition": 0.9,
+          "shelf_life_days": 2,
+          "base_price": 1.4
+        }
+      },
+      "per_capita_per_day": 3,
+      "initial": {
+        "naan": 40,
+        "grain": 30,
+        "fruit": 0,
+        "meat": 8,
+        "milk": 0
+      },
+      "spoilage_rule": "每日结算：超过 shelf_life_days 的库存按 15%/天 腐坏（有仓库则降至 8%）"
+    },
+    "materials": {
+      "display": "材料",
+      "unit": "单位",
+      "note": "建造与维修消耗。木材与土石本地可采（占人力），工具需外购或作坊产。",
+      "items": {
+        "wood": {
+          "display": "木材",
+          "base_price": 1.5
+        },
+        "earth": {
+          "display": "土石",
+          "base_price": 0.6
+        },
+        "cloth": {
+          "display": "织物",
+          "base_price": 4.0,
+          "source": "棉花加工"
+        },
+        "tools": {
+          "display": "工具",
+          "base_price": 8.0,
+          "source": "作坊 / 外购"
+        }
+      },
+      "initial": {
+        "wood": 30,
+        "earth": 50,
+        "cloth": 5,
+        "tools": 4
+      },
+      "gathering": {
+        "wood_per_labor_day": 8,
+        "earth_per_labor_day": 12,
+        "note": "派 1 人采 1 天产出量；开采距离越远（探索解锁）产量越高，见 exploration.resource_nodes"
+      }
+    },
+    "silver": {
+      "display": "银两",
+      "unit": "两",
+      "initial": 40,
+      "hard_floor": 0,
+      "sources": [
+        "商队食宿费",
+        "巴扎抽成",
+        "物产外销",
+        "护送佣金"
+      ],
+      "note": "开局只有 40 两，玩家必须在前几天靠接待第一支商队获得现金流，否则买不起工具。"
+    }
+  },
+  "karez": {
+    "display": "坎儿井",
+    "note": "核心生命线。四部分：竖井群 → 暗渠 → 明渠 → 涝坝。每段竖井既有『投资成本』也决定『日出水量』。",
+    "flow_per_section": 55,
+    "max_sections": 6,
+    "sections": [
+      {
+        "index": 1,
+        "display": "第一段竖井（井口段）",
+        "labor": 50,
+        "materials": {
+          "wood": 12,
+          "earth": 25
+        },
+        "days": 2,
+        "requires_tools": 0,
+        "requires_skill": 20
+      },
+      {
+        "index": 2,
+        "display": "第二段竖井",
+        "labor": 90,
+        "materials": {
+          "wood": 18,
+          "earth": 40
+        },
+        "days": 3,
+        "requires_tools": 1,
+        "requires_skill": 30
+      },
+      {
+        "index": 3,
+        "display": "第三段竖井（深井）",
+        "labor": 150,
+        "materials": {
+          "wood": 26,
+          "earth": 60
+        },
+        "days": 4,
+        "requires_tools": 2,
+        "requires_skill": 40
+      },
+      {
+        "index": 4,
+        "display": "第四段竖井",
+        "labor": 240,
+        "materials": {
+          "wood": 34,
+          "earth": 85
+        },
+        "days": 5,
+        "requires_tools": 3,
+        "requires_skill": 50
+      },
+      {
+        "index": 5,
+        "display": "第五段竖井",
+        "labor": 360,
+        "materials": {
+          "wood": 45,
+          "earth": 120
+        },
+        "days": 6,
+        "requires_tools": 4,
+        "requires_skill": 60
+      },
+      {
+        "index": 6,
+        "display": "第六段竖井（源段）",
+        "labor": 520,
+        "materials": {
+          "wood": 60,
+          "earth": 170
+        },
+        "days": 8,
+        "requires_tools": 6,
+        "requires_skill": 70
+      }
+    ],
+    "channels": {
+      "display": "明渠",
+      "initial": 0,
+      "max": 4,
+      "each": {
+        "labor": 110,
+        "materials": {
+          "earth": 70
+        },
+        "days": 3,
+        "water_capacity": 110,
+        "irrigated_plots": 4
+      }
+    },
+    "reservoir": {
+      "display": "涝坝（蓄水池）",
+      "initial_level": 0,
+      "levels": [
+        {
+          "level": 1,
+          "labor": 130,
+          "materials": {
+            "earth": 90,
+            "wood": 15
+          },
+          "capacity": 450
+        },
+        {
+          "level": 2,
+          "labor": 260,
+          "materials": {
+            "earth": 160,
+            "wood": 30
+          },
+          "capacity": 900
+        },
+        {
+          "level": 3,
+          "labor": 430,
+          "materials": {
+            "earth": 240,
+            "wood": 50
+          },
+          "capacity": 1600
+        },
+        {
+          "level": 4,
+          "labor": 680,
+          "materials": {
+            "earth": 350,
+            "wood": 80
+          },
+          "capacity": 2600
+        }
+      ]
+    },
+    "risk_events": {
+      "collapse": {
+        "display": "塌方",
+        "trigger": "施工中每日 8% 概率（老坎匠在场降至 3%）",
+        "effect": "损失 15 人力·天进度，1 名居民受伤，water -10"
+      },
+      "underground_river": {
+        "display": "挖到暗河",
+        "trigger": "第 3/5/6 段施工时 5% 概率",
+        "effect": "flow_per_section 永久 +12，但引发一次『水权争议』外交事件"
+      },
+      "silt_block": {
+        "display": "暗渠淤塞",
+        "trigger": "每 20 天固定检定一次，silt 值 >= 100",
+        "effect": "flow_per_day 降至 40%，需 1 天 + 20 人力疏通"
+      }
+    },
+    "skill": {
+      "display": "坎儿井技艺",
+      "note": "居民技能，决定能否施工高档竖井。老坎匠初始 75，学徒跟随每日 +1。",
+      "initial_lao_kanjiang": 75,
+      "apprentice_gain_per_day": 1,
+      "below_requirement_effect": "不可施工；但仍可派人观摩学习（每日 +1 技能）"
+    },
+    "season_melt_multiplier": {
+      "spring": 1.0,
+      "summer": 1.4,
+      "autumn": 0.85,
+      "winter": 0.45,
+      "note": "冬天天山融水锐减，这是后期的核心压力点；玩家必须在秋天储满涝坝。"
+    },
+    "season_flow_bonus": {
+      "winter": -3,
+      "note": "冬季在 season_melt_multiplier 之外再扣 3 方/天的基础渗流，代表冻土层阻断补给。效果：4 段竖井时冬季供水 108 方/天，能养约 36 人 —— 逼玩家在冬天放慢扩张、或提前把涝坝蓄满。这是后期的主要节奏控制手段。"
+    }
+  },
+  "buildings": {
+    "note": "labor 单位为『人力·天』。condition 从 100 递减，低于 30 时功能打折。",
+    "list": [
+      {
+        "id": "yiguan",
+        "display": "驿馆",
+        "labor": 40,
+        "materials": {
+          "wood": 20,
+          "earth": 15
+        },
+        "days": 2,
+        "effect": {
+          "lodging_capacity": 12
+        },
+        "income_per_guest_day": 1.5,
+        "upkeep_labor_per_day": 1,
+        "unlocks": [
+          "接待商队",
+          "议事厅功能"
+        ]
+      },
+      {
+        "id": "majiu",
+        "display": "马厩",
+        "labor": 30,
+        "materials": {
+          "wood": 25,
+          "earth": 10
+        },
+        "days": 2,
+        "effect": {
+          "livestock_capacity": 15,
+          "trade_range": 1
+        },
+        "upkeep_labor_per_day": 1,
+        "unlocks": [
+          "商队换乘",
+          "骑兵单位"
+        ]
+      },
+      {
+        "id": "cangku",
+        "display": "仓库",
+        "labor": 35,
+        "materials": {
+          "wood": 20,
+          "earth": 20
+        },
+        "days": 2,
+        "effect": {
+          "storage_multiplier": 1.5,
+          "spoilage_reduction": 0.47
+        },
+        "upkeep_labor_per_day": 0,
+        "note": "spoilage 15%/day → 8%/day"
+      },
+      {
+        "id": "chufang",
+        "display": "厨房",
+        "labor": 25,
+        "materials": {
+          "earth": 18,
+          "wood": 8
+        },
+        "days": 1,
+        "effect": {
+          "food_efficiency": 1.15
+        },
+        "upkeep_labor_per_day": 1,
+        "unlocks": [
+          "加工：粮→馕",
+          "瓜果→果干"
+        ]
+      },
+      {
+        "id": "bazha",
+        "display": "巴扎（集市）",
+        "labor": 60,
+        "materials": {
+          "wood": 30,
+          "cloth": 5,
+          "earth": 25
+        },
+        "days": 3,
+        "effect": {
+          "trade_commission_rate": 0.08,
+          "weekly_visitor_bonus": 3
+        },
+        "upkeep_labor_per_day": 2,
+        "unlocks": [
+          "自由贸易",
+          "巴扎抽成"
+        ]
+      },
+      {
+        "id": "zuofang",
+        "display": "作坊",
+        "labor": 45,
+        "materials": {
+          "wood": 22,
+          "earth": 20,
+          "tools": 2
+        },
+        "days": 2,
+        "effect": {
+          "craft_efficiency": 1.0
+        },
+        "upkeep_labor_per_day": 1,
+        "unlocks": [
+          "棉→布",
+          "器物加工",
+          "工具自产"
+        ]
+      },
+      {
+        "id": "liangfang",
+        "display": "葡萄晾房",
+        "labor": 35,
+        "materials": {
+          "earth": 45,
+          "wood": 12
+        },
+        "days": 2,
+        "effect": {
+          "fruit_to_raisin_rate": 0.25
+        },
+        "upkeep_labor_per_day": 0,
+        "note": "葡萄 4 → 葡萄干 1，保质期 8 天 → 120 天。是过冬的关键。"
+      },
+      {
+        "id": "weijiang",
+        "display": "围墙",
+        "labor": 50,
+        "materials": {
+          "earth": 60
+        },
+        "days": 3,
+        "effect": {
+          "security": 15,
+          "raid_defense_bonus": 0.2
+        },
+        "upkeep_labor_per_day": 0
+      },
+      {
+        "id": "fengsui",
+        "display": "烽燧",
+        "labor": 40,
+        "materials": {
+          "earth": 45,
+          "wood": 10
+        },
+        "days": 2,
+        "effect": {
+          "security": 10,
+          "raid_warning_days": 2
+        },
+        "upkeep_labor_per_day": 1,
+        "note": "提前 2 天预警马匪来袭——这是让玩家能『布阵』的前提。"
+      },
+      {
+        "id": "juzhu",
+        "display": "居民居所",
+        "labor": 20,
+        "materials": {
+          "earth": 22,
+          "wood": 10
+        },
+        "days": 1,
+        "effect": {
+          "population_capacity": 6
+        },
+        "upkeep_labor_per_day": 0,
+        "repeatable": true
+      },
+      {
+        "id": "zhanfang",
+        "display": "毡房区",
+        "labor": 18,
+        "materials": {
+          "cloth": 6,
+          "wood": 6
+        },
+        "days": 1,
+        "effect": {
+          "population_capacity": 4,
+          "nomad_affinity": 5
+        },
+        "upkeep_labor_per_day": 0,
+        "repeatable": true,
+        "note": "给游牧部落住，+关系；与居所相比容量小但外交收益高"
+      },
+      {
+        "id": "yinletai",
+        "display": "奏乐台",
+        "labor": 30,
+        "materials": {
+          "wood": 18,
+          "cloth": 4
+        },
+        "days": 2,
+        "effect": {
+          "morale_per_day": 1,
+          "bazaar_attraction": 2
+        },
+        "upkeep_labor_per_day": 1,
+        "unlocks": [
+          "木卡姆集会"
+        ]
+      }
+    ]
+  },
+  "population": {
+    "initial": 6,
+    "capacity_formula": "min(reservoir_capacity / 30, irrigated_plots * 3, housing_capacity)",
+    "daily_consumption": {
+      "food_per_person": 3,
+      "water_per_person": 3.0,
+      "silver_upkeep_per_person": 0.2
+    },
+    "growth": {
+      "rule": "每日检定：若 food_stock_days >= 5 且 morale >= 55 且 population < capacity，则 12% 概率 +1 人",
+      "arrival_source": "声望越高，来投奔者越强（工匠/骑手）而非普通流民",
+      "decline": "若 food_stock_days < 2 或 morale < 30，每日 8% 概率 -1 人"
+    },
+    "jobs": {
+      "note": "每个居民每天可分配一个岗位；岗位产出见各系统",
+      "list": [
+        {
+          "id": "water",
+          "display": "治水",
+          "output": "推进坎儿井工程，1 人·天 = 1 labor"
+        },
+        {
+          "id": "farm",
+          "display": "耕作",
+          "output": "每块田 1 人产出见 agriculture"
+        },
+        {
+          "id": "gather",
+          "display": "采集",
+          "output": "wood 8/天 或 earth 12/天"
+        },
+        {
+          "id": "trade",
+          "display": "经商",
+          "output": "提升当日商队成交额 15%/人，最多 3 人有效"
+        },
+        {
+          "id": "guard",
+          "display": "守卫",
+          "output": "security +5/人（上限 60）"
+        },
+        {
+          "id": "cook",
+          "display": "炊事",
+          "output": "食物效率 +8%/人（上限 2 人）"
+        },
+        {
+          "id": "craft",
+          "display": "做工",
+          "output": "加工产出，见 crafting"
+        },
+        {
+          "id": "music",
+          "display": "演艺",
+          "output": "morale +2/天，巴扎人气 +1/天"
+        },
+        {
+          "id": "idle",
+          "display": "待命",
+          "output": "恢复士气，morale +0.5/天/人"
+        }
+      ]
+    }
+  },
+  "agriculture": {
+    "note": "每块田需 1 名农夫 + 水。水不足时按比例减产（这是后期核心抉择）。",
+    "plot_water_cost_per_day": 4,
+    "crops": {
+      "grape": {
+        "display": "葡萄",
+        "grow_days": 20,
+        "yield_per_plot": 30,
+        "water_per_day": 6,
+        "seasons": [
+          "spring",
+          "summer",
+          "autumn"
+        ],
+        "value_hint": "生食 / 晾房制葡萄干"
+      },
+      "hama": {
+        "display": "哈密瓜",
+        "grow_days": 18,
+        "yield_per_plot": 22,
+        "water_per_day": 7,
+        "seasons": [
+          "spring",
+          "summer"
+        ],
+        "value_hint": "高 morale 加成，易腐"
+      },
+      "cotton": {
+        "display": "棉花",
+        "grow_days": 25,
+        "yield_per_plot": 18,
+        "water_per_day": 5,
+        "seasons": [
+          "spring",
+          "summer",
+          "autumn"
+        ],
+        "value_hint": "作坊加工成布，冬装必需"
+      },
+      "wheat": {
+        "display": "小麦",
+        "grow_days": 22,
+        "yield_per_plot": 35,
+        "water_per_day": 5,
+        "seasons": [
+          "autumn",
+          "spring"
+        ],
+        "value_hint": "主粮，耐储"
+      }
+    },
+    "water_shortage_rule": "若当日可用水 < 全部田块需求，按缺口比例均匀减产（不优先牺牲某块田），缺口 > 60% 时作物有 50% 概率枯死"
+  },
+  "exploration": {
+    "note": "派遣队伍沿丝路古道开图。距离越远风险越高、回报越好。",
+    "party_size": {
+      "min": 2,
+      "max": 6
+    },
+    "travel_speed_km_per_day": 25,
+    "supply_consumption": {
+      "water_per_person_per_day": 4,
+      "food_per_person_per_day": 3
+    },
+    "locations": [
+      {
+        "id": "dahaidao",
+        "display": "大海道",
+        "distance_km": 60,
+        "danger": 2,
+        "unlocks": [
+          "wood_rich",
+          "古驿站遗迹"
+        ]
+      },
+      {
+        "id": "mohouyanqi",
+        "display": "莫贺延碛",
+        "distance_km": 110,
+        "danger": 3,
+        "unlocks": [
+          "盐池",
+          "商路情报"
+        ]
+      },
+      {
+        "id": "shanzu",
+        "display": "雪山山麓",
+        "distance_km": 80,
+        "danger": 3,
+        "unlocks": [
+          "水源勘察",
+          "木材丰产区"
+        ]
+      },
+      {
+        "id": "caoyuan",
+        "display": "草原牧场",
+        "distance_km": 70,
+        "danger": 1,
+        "unlocks": [
+          "畜牧交易",
+          "哈萨克部落"
+        ]
+      },
+      {
+        "id": "guicheng",
+        "display": "龟兹故城",
+        "distance_km": 180,
+        "danger": 4,
+        "unlocks": [
+          "文物",
+          "文化知识",
+          "高级工匠"
+        ]
+      },
+      {
+        "id": "loulan",
+        "display": "楼兰遗迹",
+        "distance_km": 240,
+        "danger": 5,
+        "unlocks": [
+          "剧情线",
+          "珍稀物产"
+        ]
+      }
+    ],
+    "resource_nodes": {
+      "wood_rich": {
+        "yield_multiplier": 1.8,
+        "note": "解锁后在雪山山麓采集木材产量 ×1.8"
+      },
+      "salt": {
+        "display": "盐池",
+        "trade_value": 3.0
+      }
+    },
+    "encounter_rates": {
+      "per_day": {
+        "nothing": 0.35,
+        "resource": 0.25,
+        "traveler": 0.15,
+        "beast": 0.12,
+        "bandit": 0.08,
+        "ruin": 0.05
+      }
+    }
+  },
+  "combat": {
+    "note": "俯视回合制。先手按 agility 排序，同侧单位由玩家统一指挥后结算。数值刻意保持小（10-40 区间）便于心算与平衡。",
+    "max_field_units_per_side": 6,
+    "turn_structure": [
+      "player_command_all",
+      "resolve_player_actions",
+      "ai_decide",
+      "resolve_ai_actions",
+      "end_of_round_effects"
+    ],
+    "stats": [
+      "hp",
+      "atk",
+      "def",
+      "agi",
+      "morale",
+      "range"
+    ],
+    "damage_formula": "max(1, round(atk * (1 + morale/200) - def * 0.6) * random(0.9, 1.1))",
+    "units": {
+      "minbing": {
+        "display": "民兵",
+        "hp": 24,
+        "atk": 8,
+        "def": 5,
+        "agi": 6,
+        "morale": 50,
+        "range": 1,
+        "cost": {
+          "silver": 0
+        },
+        "note": "居民临时武装，士气低易溃"
+      },
+      "qishou": {
+        "display": "骑手",
+        "hp": 30,
+        "atk": 13,
+        "def": 6,
+        "agi": 12,
+        "morale": 65,
+        "range": 1,
+        "cost": {
+          "silver": 15
+        },
+        "note": "高机动，可先手切入后排"
+      },
+      "gongshou": {
+        "display": "弓手",
+        "hp": 20,
+        "atk": 11,
+        "def": 3,
+        "agi": 9,
+        "morale": 55,
+        "range": 4,
+        "cost": {
+          "silver": 20
+        },
+        "note": "脆但可远程，怕近身"
+      },
+      "wei": {
+        "display": "护卫",
+        "hp": 45,
+        "atk": 10,
+        "def": 14,
+        "agi": 4,
+        "morale": 60,
+        "range": 1,
+        "cost": {
+          "silver": 25
+        },
+        "note": "肉盾，掩护技能收益最高"
+      },
+      "jiangren": {
+        "display": "匠人",
+        "hp": 18,
+        "atk": 4,
+        "def": 4,
+        "agi": 5,
+        "morale": 45,
+        "range": 1,
+        "cost": {
+          "silver": 0
+        },
+        "note": "非战斗单位；战场技能『修械』可临时 +3 atk 给友军"
+      },
+      "mafei": {
+        "display": "马匪",
+        "hp": 28,
+        "atk": 12,
+        "def": 7,
+        "agi": 10,
+        "morale": 55,
+        "range": 1,
+        "cost": null,
+        "note": "敌方基础单位"
+      },
+      "langqun": {
+        "display": "狼",
+        "hp": 16,
+        "atk": 10,
+        "def": 2,
+        "agi": 14,
+        "morale": 70,
+        "range": 1,
+        "cost": null,
+        "note": "群体行动，agi 极高，喜围攻落单目标"
+      },
+      "mazei_tou": {
+        "display": "马匪头目",
+        "hp": 70,
+        "atk": 18,
+        "def": 12,
+        "agi": 11,
+        "morale": 75,
+        "range": 1,
+        "cost": null,
+        "note": "Boss。会『试探』：第一回合只派 2 人试探玩家布防强度"
+      }
+    },
+    "actions": {
+      "attack": {
+        "display": "攻击",
+        "cost_ap": 1
+      },
+      "defend": {
+        "display": "防御",
+        "cost_ap": 1,
+        "effect": "本回合受伤 -40%，morale +3"
+      },
+      "move": {
+        "display": "移动",
+        "cost_ap": 1,
+        "effect": "最多移动 3 格"
+      },
+      "skill": {
+        "display": "技能",
+        "cost_ap": 1,
+        "note": "各单位特有，见 unit_skills"
+      },
+      "cover": {
+        "display": "掩护",
+        "cost_ap": 1,
+        "effect": "替相邻友军承受 50% 伤害，自身 def +4"
+      },
+      "retreat": {
+        "display": "撤退",
+        "cost_ap": 1,
+        "effect": "脱离战斗；损失 30% 携带物资，morale -10，声望 -5"
+      }
+    },
+    "environment": {
+      "sandstorm": {
+        "display": "沙暴",
+        "effect": "每回合全体 -2 hp（无法防御减免），远程 range -1",
+        "tactical_note": "沙暴对弓手与狼群同样不利，是可被利用的天时"
+      },
+      "drought": {
+        "display": "干旱",
+        "effect": "全员水囊消耗 ×2，无水源补给"
+      },
+      "cold": {
+        "display": "寒潮",
+        "effect": "无棉布装备单位每回合 -1 hp；骑手 agi -3"
+      }
+    },
+    "ai_tactics": {
+      "note": "敌方 AI 的策略权重由 Python 服务根据玩家最近 3 回合行为动态调整",
+      "base_behaviors": {
+        "probe": {
+          "display": "试探",
+          "trigger": "首回合或我方兵力劣势未知时",
+          "effect": "只投入 30% 单位接敌，观察玩家反应"
+        },
+        "flank": {
+          "display": "迂回",
+          "trigger": "玩家后排暴露时权重 +40%",
+          "effect": "骑手模式绕过前排打弓手/匠人"
+        },
+        "focus": {
+          "display": "集火",
+          "trigger": "玩家出现残血单位时权重 +50%",
+          "effect": "全部单位优先攻击最低 hp 目标"
+        },
+        "bait": {
+          "display": "诱敌",
+          "trigger": "玩家连续使用攻击指令时权重 +30%",
+          "effect": "派 1 单位深入引诱，主力埋伏"
+        },
+        "withdraw": {
+          "display": "撤退",
+          "trigger": "敌方总 hp < 30% 且头目不在场",
+          "effect": "脱离战斗，留下一半战利品"
+        }
+      },
+      "learning_hook": "服务端记录玩家战术标签（激进/保守/善用掩护/依赖远程），写入 battle context，让敌方选择相对策略——这是演示杀手锏『AI 在学习玩家』的实现基础"
+    },
+    "rewards": {
+      "bandit_win": {
+        "silver": "10-40",
+        "loot": [
+          "tools",
+          "cloth",
+          "goods"
+        ]
+      },
+      "defend_win": {
+        "reputation": 8,
+        "security": 5,
+        "morale": 8
+      },
+      "loss_penalty": {
+        "silver_loss_percent": 30,
+        "building_condition": -25,
+        "morale": -15,
+        "casualty_chance": 0.15
+      }
+    }
+  },
+  "diplomacy": {
+    "note": "博弈系统。核心是信息不对称：每个势力有隐藏的底价与意图。",
+    "factions": [
+      {
+        "id": "caravan_han",
+        "display": "汉族商队",
+        "initial_affinity": 20,
+        "hidden": {
+          "price_flex": 0.15,
+          "urgency": 0.3
+        },
+        "wants": [
+          "仓储",
+          "马匹",
+          "情报"
+        ],
+        "offers": [
+          "远方货物",
+          "silver",
+          "消息"
+        ]
+      },
+      {
+        "id": "kazakh_tribe",
+        "display": "哈萨克部落",
+        "initial_affinity": 35,
+        "hidden": {
+          "price_flex": 0.1,
+          "urgency": 0.5
+        },
+        "wants": [
+          "粮食",
+          "织物",
+          "冬营地"
+        ],
+        "offers": [
+          "马匹",
+          "护卫",
+          "肉奶"
+        ]
+      },
+      {
+        "id": "local_lord",
+        "display": "地方势力",
+        "initial_affinity": 0,
+        "hidden": {
+          "price_flex": 0.05,
+          "urgency": 0.2
+        },
+        "wants": [
+          "税赋",
+          "忠诚",
+          "军力"
+        ],
+        "offers": [
+          "合法性",
+          "保护",
+          "批文"
+        ]
+      },
+      {
+        "id": "rival_station",
+        "display": "邻近驿站",
+        "initial_affinity": -10,
+        "hidden": {
+          "price_flex": 0.2,
+          "urgency": 0.4
+        },
+        "wants": [
+          "商路份额",
+          "人才"
+        ],
+        "offers": [
+          "合作",
+          "竞争",
+          "情报交换"
+        ]
+      },
+      {
+        "id": "bandit_gang",
+        "display": "马匪团伙",
+        "initial_affinity": -40,
+        "hidden": {
+          "price_flex": 0.3,
+          "urgency": 0.6
+        },
+        "wants": [
+          "过路费",
+          "物资",
+          "情报"
+        ],
+        "offers": [
+          "安全通行",
+          "黑市",
+          "佣兵"
+        ]
+      }
+    ],
+    "affinity_scale": {
+      "min": -100,
+      "max": 100,
+      "bands": [
+        {
+          "min": -100,
+          "max": -50,
+          "label": "敌对",
+          "effect": "拒绝交易，可能主动袭击"
+        },
+        {
+          "min": -49,
+          "max": -10,
+          "label": "敌视",
+          "effect": "交易价格 +25%，不提供情报"
+        },
+        {
+          "min": -9,
+          "max": 20,
+          "label": "中立",
+          "effect": "正常交易"
+        },
+        {
+          "min": 21,
+          "max": 60,
+          "label": "友好",
+          "effect": "价格 -10%，可能提供情报"
+        },
+        {
+          "min": 61,
+          "max": 100,
+          "label": "盟友",
+          "effect": "价格 -20%，可求援，共享地图"
+        }
+      ]
+    },
+    "negotiation": {
+      "price_range": {
+        "min_multiplier": 0.75,
+        "max_multiplier": 1.3
+      },
+      "affinity_effect_on_price": "每 10 点 affinity ≈ 价格 -5%",
+      "skill_effect": "经商技能每 10 点 ≈ 成交价改善 3%",
+      "risk": "过度压价有 概率 使 affinity -8 并终止谈判（对方翻脸）",
+      "bluff_detection": "玩家可通过『观察』行动（消耗 1 行动点）探知对方 urgency，降低被虚张声势欺骗的概率"
+    },
+    "tribute": {
+      "note": "向地方势力纳税可换合法性：每 10 两 = affinity +5，或 reputation +3"
+    }
+  },
+  "stats": {
+    "note": "四大关键指标，均为 0-100 或累积值，用于胜利判定与内容解锁。",
+    "prosperity": {
+      "display": "繁荣度",
+      "kind": "cumulative_score",
+      "formula": "sum(buildings[].prosperity_value) + population * 3 + sum(active_trade_routes) * 8",
+      "building_prosperity_values": {
+        "yiguan": 10,
+        "majiu": 6,
+        "cangku": 6,
+        "chufang": 5,
+        "bazha": 18,
+        "zuofang": 12,
+        "liangfang": 7,
+        "weijiang": 8,
+        "fengsui": 7,
+        "juzhu": 2,
+        "zhanfang": 2,
+        "yinletai": 8
+      },
+      "note": "故意设计成『建筑与人口驱动』，让玩家的经营行为直接可视化地推高繁荣度"
+    },
+    "reputation": {
+      "display": "声望",
+      "kind": "0-100",
+      "initial": 10,
+      "gains": {
+        "guest_served": 1,
+        "caravan_well_served": 3,
+        "bandit_defeat": 8,
+        "cultural_event": 10,
+        "aid_given": 5
+      },
+      "losses": {
+        "guest_turned_away": -2,
+        "guest_died": -8,
+        "broken_promise": -6,
+        "defeat": -5
+      },
+      "effect": "决定来访者质量。声望 < 20 只有普通商队；> 60 出现高级工匠、使者、乐师；> 85 触发文化盛事"
+    },
+    "morale": {
+      "display": "居民士气",
+      "kind": "0-100",
+      "initial": 55,
+      "formula": "base_morale + sum(daily_modifiers) 夹紧 [0,100]",
+      "daily_modifiers": {
+        "food_surplus": {
+          "condition": "food_stock_days >= 5",
+          "value": 2
+        },
+        "food_shortage": {
+          "condition": "food_stock_days < 2",
+          "value": -5
+        },
+        "water_shortage": {
+          "condition": "water.current < 人群日需 * 2",
+          "value": -4
+        },
+        "water_plenty": {
+          "condition": "water.current > capacity * 0.7",
+          "value": 1
+        },
+        "music_playing": {
+          "value": 2,
+          "requires": "yinletai 或 木卡姆艺人"
+        },
+        "overworked": {
+          "condition": "连续 5 天无人 idle",
+          "value": -3
+        },
+        "recent_victory": {
+          "value": 8,
+          "duration_days": 3
+        },
+        "recent_loss": {
+          "value": -10,
+          "duration_days": 5
+        },
+        "housing_crowded": {
+          "condition": "population > housing_capacity * 0.9",
+          "value": -2
+        }
+      },
+      "thresholds": [
+        {
+          "below": 30,
+          "effect": "居民可能拒绝指令，效率 ×0.7，有人出走"
+        },
+        {
+          "below": 15,
+          "effect": "有 内乱 风险事件，人口流失加速"
+        }
+      ]
+    },
+    "security": {
+      "display": "安全度",
+      "kind": "0-100",
+      "formula": "guards * 5 + wall.security + towers.security + hero_units * 8 + reputation * 0.2",
+      "bandit_raid_threshold": {
+        "note": "security 越低，马匪越可能来袭，且规模越大",
+        "raid_chance_per_week": "clamp(0.5 - security/200, 0.05, 0.5)",
+        "raid_size": "clamp(2 + round((60 - security)/12), 2, 6)"
+      }
+    }
+  },
+  "progression": {
+    "note": "称号进阶，既是引导也是胜利判定的中间里程碑。无期限模式下这是主要的正反馈来源。",
+    "ranks": [
+      {
+        "rank": 0,
+        "title": "荒驿",
+        "requires": {
+          "prosperity": 0,
+          "reputation": 0,
+          "population": 0
+        },
+        "effect": "无加成（起点）"
+      },
+      {
+        "rank": 1,
+        "title": "小驿",
+        "requires": {
+          "prosperity": 40,
+          "reputation": 20,
+          "population": 12
+        },
+        "effect": "建造 labor 成本 -5%"
+      },
+      {
+        "rank": 2,
+        "title": "通驿",
+        "requires": {
+          "prosperity": 120,
+          "reputation": 45,
+          "population": 25
+        },
+        "effect": "可解锁 商路，商队来访 +50%"
+      },
+      {
+        "rank": 3,
+        "title": "重镇",
+        "requires": {
+          "prosperity": 260,
+          "reputation": 70,
+          "population": 45
+        },
+        "effect": "外交事件解锁，可结盟"
+      },
+      {
+        "rank": 4,
+        "title": "丝路名驿",
+        "requires": {
+          "prosperity": 480,
+          "reputation": 88,
+          "population": 70
+        },
+        "effect": "文化盛事解锁，可举办木卡姆集会"
+      },
+      {
+        "rank": 5,
+        "title": "绿洲名城",
+        "requires": {
+          "prosperity": 700,
+          "reputation": 95,
+          "population": 95
+        },
+        "effect": "终极胜利判定"
+      }
+    ]
+  },
+  "victory": {
+    "note": "多档胜利，无期限模式下玩家自选目标。",
+    "conditions": {
+      "water_master": {
+        "display": "水源大成",
+        "requires": "坎儿井 6 段全通 + 明渠 4 条 + 涝坝 4 级"
+      },
+      "trade_hub": {
+        "display": "商路枢纽",
+        "requires": "4 条商路全通 + 巴扎建成 + prosperity >= 480"
+      },
+      "culture_peak": {
+        "display": "文化鼎盛",
+        "requires": "举办木卡姆集会 + reputation >= 88 + 音letai 建成"
+      },
+      "grand_oasis": {
+        "display": "绿洲重镇",
+        "requires": "rank 5 达成（完全胜利）"
+      }
+    }
+  },
+  "failure": {
+    "conditions": {
+      "water_collapse": {
+        "display": "水源断绝",
+        "trigger": "water.current == 0 持续 10 天"
+      },
+      "population_gone": {
+        "display": "居民离散",
+        "trigger": "population <= 0"
+      },
+      "station_sacked": {
+        "display": "据点被破",
+        "trigger": "防御战失败且 security < 10"
+      },
+      "reputation_zero": {
+        "display": "声望崩塌",
+        "trigger": "reputation <= 0 持续 5 天，商队不再来访"
+      }
+    },
+    "note": "失败不立刻结束游戏，给 3 天『最后一搏』窗口，并明确告知补救条件——避免玩家挫败感"
+  },
+  "economy": {
+    "base_prices": {
+      "grain": 0.7,
+      "naan": 1.0,
+      "fruit": 1.2,
+      "meat": 2.5,
+      "milk": 1.4,
+      "grape": 1.8,
+      "raisin": 4.5,
+      "hama": 2.2,
+      "cotton": 1.6,
+      "cloth": 4.0,
+      "silk": 12.0,
+      "rug": 18.0,
+      "copper": 7.0,
+      "instrument": 22.0,
+      "wood": 1.5,
+      "earth": 0.6,
+      "tools": 8.0,
+      "salt": 3.0
+    },
+    "price_modifiers": {
+      "season": {
+        "spring": 1.1,
+        "summer": 0.95,
+        "autumn": 0.85,
+        "winter": 1.35
+      },
+      "affinity": "每 10 点 affinity → 买价 -4% / 卖价 +4%",
+      "scarcity": "本地该物产库存 < 5 时买价 +30%",
+      "war_rumor": "若近期有马匪消息，武器类 +40%，粮食 +15%"
+    },
+    "service_income": {
+      "lodging_per_guest_per_night": 1.5,
+      "stable_per_horse_per_night": 0.8,
+      "warehouse_per_unit_per_day": 0.05,
+      "meal_per_guest": 0.6,
+      "guide_fee_per_trip": "5-15（视距离与声望）"
+    }
+  },
+  "ai_budget": {
+    "note": "AI 调用的量化预算，用于成本与延迟控制（对应 GDD 5.5）。",
+    "context_max_tokens": 4000,
+    "response_max_tokens": 800,
+    "cache_hint": "system prompt + 角色卡 + 世界设定 放最前，内容逐字不变以命中缓存",
+    "batching": {
+      "max_items_per_call": 6,
+      "note": "路人台词/传闻等短内容合并成一次调用，输出 JSON 数组"
+    },
+    "retry": {
+      "max_attempts": 2,
+      "backoff_ms": [
+        400,
+        1200
+      ]
+    },
+    "degrade": "两次失败 → demo 预设内容 → 继续游戏，不中断"
+  },
+  "tuning_notes": {
+    "difficulty_curve": "第 1-7 天：水以 13 方/天净速下降（90 方起），玩家必须在此窗口内完成第一段竖井 → 第 8-30 天：修完第一段后盈余 42 方/天，转入资源平衡期（粮食与建造抢人力）→ 第 31-90 天：扩张与外交（安全度矛盾变成主要瓶颈）→ 第 91 天起：过冬压力（融水 ×0.45 且再扣 3 方/天，供水随人口增长而吃紧）",
+    "intended_first_play": "玩家第一次玩大概率在第 5-8 天因缺水失败——这是有意的教学，失败提示会直接指出『该修坎儿井了』",
+    "open_questions": [
+      "水平衡经两轮修正：初版 60/0 只有 3.3 天（太紧，无容错）；二版残流 18 导致净消耗为 0（水永不枯竭，紧迫感消失）。现为 90/5 → 6.9 天。待 S2 实测：玩家是否会稳定在第 5-7 天完成第一段？如果普遍做不到，说明教学引导不足而非数值问题。",
+      "繁荣度 rank 3 需要 260，按建筑表估算需约 8-10 栋建筑，是否与人口 45 的成长速度匹配？待 S3 实测。",
+      "战斗数值刻意做小，但 morale 对伤害的加成 (1 + morale/200) 在 75 士气时是 +37.5%，可能过强，待实测。"
+    ]
+  }
+}

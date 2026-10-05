@@ -1,0 +1,25 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- 《坎儿井》图标：地表竖井 + 地下暗渠 -->
+  <rect width="128" height="128" fill="#2B2118"/>
+  <!-- 沙漠地表 -->
+  <rect x="0" y="34" width="128" height="10" fill="#D9B382"/>
+  <rect x="0" y="44" width="128" height="6" fill="#B8935F"/>
+  <!-- 三口干渠竖井 -->
+  <rect x="20" y="24" width="12" height="26" fill="#8B6B47"/>
+  <rect x="58" y="24" width="12" height="26" fill="#8B6B47"/>
+  <rect x="96" y="24" width="12" height="26" fill="#8B6B47"/>
+  <rect x="23" y="27" width="6" height="20" fill="#3D3024"/>
+  <rect x="61" y="27" width="6" height="20" fill="#3D3024"/>
+  <rect x="99" y="27" width="6" height="20" fill="#3D3024"/>
+  <!-- 地下暗渠 -->
+  <rect x="0" y="72" width="128" height="18" fill="#3A7086"/>
+  <rect x="0" y="72" width="128" height="5" fill="#5A9CB0"/>
+  <!-- 水流高光 -->
+  <rect x="8" y="80" width="18" height="3" fill="#8FC7D6"/>
+  <rect x="40" y="86" width="22" height="3" fill="#8FC7D6"/>
+  <rect x="78" y="80" width="20" height="3" fill="#8FC7D6"/>
+  <!-- 井口连接 -->
+  <rect x="26" y="50" width="2" height="22" fill="#6B4F33"/>
+  <rect x="64" y="50" width="2" height="22" fill="#6B4F33"/>
+  <rect x="102" y="50" width="2" height="22" fill="#6B4F33"/>
+</svg>

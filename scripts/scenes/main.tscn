@@ -1,0 +1,98 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://core/game_state.gd" id="2_state"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="GameState" type="Node" parent="."]
+script = ExtResource("2_state")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.168627, 0.129412, 0.094118, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="Rows" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TopRow" type="HBoxContainer" parent="Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SpeakerLabel" type="Label" parent="Margin/Rows/TopRow"]
+layout_mode = 2
+text = "对话对象："
+
+[node name="Speaker" type="OptionButton" parent="Margin/Rows/TopRow"]
+layout_mode = 2
+
+[node name="NextDay" type="Button" parent="Margin/Rows/TopRow"]
+layout_mode = 2
+text = "推进一天"
+
+[node name="Spacer" type="Control" parent="Margin/Rows/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ConnState" type="Label" parent="Margin/Rows/TopRow"]
+layout_mode = 2
+text = "● 正在探测 AI 服务…"
+
+[node name="LogPanel" type="PanelContainer" parent="Margin/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Log" type="RichTextLabel" parent="Margin/Rows/LogPanel"]
+layout_mode = 2
+bbcode_enabled = true
+scroll_following = true
+selection_enabled = true
+
+[node name="SuggestionRow" type="HBoxContainer" parent="Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="InputRow" type="HBoxContainer" parent="Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Input" type="LineEdit" parent="Margin/Rows/InputRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "说点什么……（回车发送）"
+
+[node name="Send" type="Button" parent="Margin/Rows/InputRow"]
+layout_mode = 2
+text = "发送"
+
+[node name="StatusBar" type="PanelContainer" parent="Margin/Rows"]
+layout_mode = 2
+
+[node name="Status" type="Label" parent="Margin/Rows/StatusBar"]
+layout_mode = 2
+text = "状态加载中…"

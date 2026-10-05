@@ -1,0 +1,63 @@
+{
+  "$comment": "事件库 schema。Godot 侧按此驱动事件；Python 侧可选地用模板派生具体文案。",
+  "schema_version": "1.0",
+
+  "event_fields": {
+    "id": "唯一字符串，蛇形命名",
+    "category": "explore | manage | diplomacy | crisis",
+    "title": "玩家看到的事件标题，10 字以内",
+    "weight": "随机选择权重。同类事件按权重加权抽取",
+    "repeatable": "是否可重复触发",
+    "cooldown_days": "repeatable 为 true 时的冷却天数；false 则忽略",
+    "max_per_game": "整局最多触发次数。null 表示不限",
+    "conditions": "触发条件数组，全部满足才可触发（AND）",
+    "text": "事件正文。120 字以内。用具体细节，不用概述",
+    "prompt_hint": "给 AI 的补充指示，用于让 AI 在此基础上扩写。留空表示不需要扩写",
+    "choices": "玩家的选项数组，每个含 text 与 effects"
+  },
+
+  "condition_dsl": {
+    "$comment": "条件用 op + path + value 表示。path 使用与 state_delta 相同的命名空间。",
+    "ops": {
+      "gte": "大于等于",
+      "lte": "小于等于",
+      "eq": "等于",
+      "neq": "不等于",
+      "has": "flag 存在且为真",
+      "not_has": "flag 不存在或为假",
+      "is": "枚举值相等（用于 season / phase）"
+    },
+    "paths_in_use": [
+      "day", "season", "phase",
+      "resources.water.current", "resources.water.flow_per_day",
+      "resources.silver", "resources.food.grain", "resources.food.naan",
+      "karez.sections", "karez.reservoir_level",
+      "population", "stats.prosperity", "stats.reputation",
+      "stats.morale", "stats.security",
+      "buildings.yiguan", "buildings.liangfang", "buildings.fengsui",
+      "flags.*",
+      "characters.*.affinity"
+    ],
+    "example": [
+      { "op": "has", "path": "flags.karez_first_section_done" },
+      { "op": "gte", "path": "resources.water.flow_per_day", "value": 100 },
+      { "op": "is", "path": "season", "value": "winter" }
+    ]
+  },
+
+  "effect_dsl": {
+    "$comment": "与 state_delta 完全同构，复用同一套校验与夹紧逻辑。另支持 memory 与 flag 两种副作用。",
+    "ops": ["add", "sub", "set", "mul"],
+    "extra_effects": {
+      "memory": "{ \"character\": \"<id>\", \"text\": \"...\", \"kind\": \"promise|favor|conflict|secret|discovery|bond\" }",
+      "ai_scene": "可选。指定用哪个角色、哪个场景去扩写这次事件的结果"
+    }
+  },
+
+  "choice_fields": {
+    "text": "选项文字，12 字以内",
+    "hint": "可选。这个选项的隐含倾向（如 强硬 / 温和 / 试探），供 AI 与战斗系统参考",
+    "effects": "效果数组",
+    "outcome": "该选项的结果叙事（静态兜底；live 模式下由 AI 扩写）"
+  }
+}

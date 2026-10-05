@@ -1,0 +1,6313 @@
+{
+  "meta": {
+    "name": "《坎儿井》事件库 v1.0（核心 64 条）",
+    "schema": "events.schema.json",
+    "version": "1.0.0",
+    "distribution": {
+      "manage": 22,
+      "explore": 22,
+      "diplomacy": 12,
+      "crisis": 8
+    },
+    "design_notes": [
+      "每条事件都必须是「有代价的选择」，不能有纯赚的选项。",
+      "选项之间要有真实取舍：短期止损 vs 长期收益、人情 vs 效率、安全 vs 扩张。",
+      "数值变化刻意保持小额（多数 1-15），避免经济系统被事件打崩。",
+      "文案要写具体细节（谁、什么颜色、什么声音），不写概述。"
+    ],
+    "tuning_warning": "本文件的数值是首版估值，必须经 S2/S3 阶段实测调整。特别是 water 与 morale 的增减幅度。",
+    "category_index": [
+      {
+        "label": "经营类 manage（20 条）",
+        "category": "manage",
+        "count": 22
+      },
+      {
+        "label": "探索类 explore（20 条）",
+        "category": "explore",
+        "count": 22
+      },
+      {
+        "label": "外交类 diplomacy（12 条）",
+        "category": "diplomacy",
+        "count": 12
+      },
+      {
+        "label": "危机类 crisis（8 条）",
+        "category": "crisis",
+        "count": 8
+      }
+    ],
+    "distribution_note": "原计划 60 条（各项 20/20/12/8），实际撰写 64 条：manage 与 explore 各多出 2 条。以本字段为准。"
+  },
+  "events": [
+    {
+      "id": "mgt_first_shaft",
+      "category": "manage",
+      "title": "第一口竖井",
+      "weight": 100,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "eq",
+          "path": "karez.sections",
+          "value": 0
+        }
+      ],
+      "text": "老坎匠用坎土曼在沙地上划了个圈，圈里的土颜色比周围深。他说这下面有水脉的痕迹，但挖下去至少两天，而且得先把井架支起来。你手上只有四把工具，其中一把头是松的。",
+      "prompt_hint": "老坎匠对这次开工的态度要体现他的谨慎与嘴硬。他会先抱怨工具不够好。",
+      "choices": [
+        {
+          "text": "动工，先挖第一段",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 12
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 25
+            },
+            {
+              "op": "set",
+              "path": "karez.sections",
+              "value": 1
+            },
+            {
+              "op": "set",
+              "path": "karez.flow_bonus",
+              "value": 0
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.karez_started",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家决定开工挖第一段竖井"
+              }
+            }
+          ],
+          "outcome": "两天后，井口积了半人深的水。老坎匠蹲在边上看了很久，没说话，但第二天一早他就自己去支井架了。"
+        },
+        {
+          "text": "先修好那把松头的工具",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 3
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.tools",
+              "value": 0
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.tools_repaired",
+              "value": true
+            }
+          ],
+          "outcome": "工具修好了。老坎匠看了看那把镢头，说：'这还像话。'——这是他今天说的最长一句。但时间又过去了一天。"
+        },
+        {
+          "text": "先去打听别处怎么挖的",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": -2
+            },
+            {
+              "memory": {
+                "character": "muqam_yiren",
+                "text": "玩家来向他打听坎儿井的事"
+              }
+            }
+          ],
+          "outcome": "热合曼江给你讲了一堆别处的传闻，有用的只有一条：上游那片地，土是松的。但你花了两天和两杯茶。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_apprentice",
+      "category": "manage",
+      "title": "要学徒的年轻人",
+      "weight": 60,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 1
+        }
+      ],
+      "text": "一个十六七岁的小伙子蹲在井口边看了三天。第四天他找到你，说他愿意不要工钱，只要能跟着老坎匠学挖井。老坎匠在旁边听见了，转身就走。",
+      "prompt_hint": "老坎匠的反感来自他自己失去兄弟的经历，但他不会说。他会用「现在的小孩吃不了苦」来搪塞。",
+      "choices": [
+        {
+          "text": "收下，让老坎匠带",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "add",
+              "path": "population",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.has_apprentice",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家硬塞给他一个学徒，他很不高兴"
+              }
+            }
+          ],
+          "outcome": "老坎匠三天没跟你说话。但他还是让小伙子去搬土了——只是不准他下井。"
+        },
+        {
+          "text": "问他家里还有什么人",
+          "hint": "温和",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家先问学徒的家境，而不是直接答应"
+              }
+            }
+          ],
+          "outcome": "小伙子说他爹死了，家里还有娘和两个妹妹。老坎匠在远处听见了，停下脚步，但没回头。"
+        },
+        {
+          "text": "婉拒，现在养不起人",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -2
+            },
+            {
+              "op": "set",
+              "path": "flags.refused_apprentice",
+              "value": true
+            }
+          ],
+          "outcome": "小伙子走了。老坎匠看了你一眼，说：'你倒是实诚。' 你分不清这是夸还是骂。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_water_rationing",
+      "category": "manage",
+      "title": "水怎么分",
+      "weight": 80,
+      "repeatable": true,
+      "cooldown_days": 12,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 8
+        },
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 2
+        }
+      ],
+      "text": "棉田和瓜田都要水，但井里出的水只够浇一片。种棉能过冬，种瓜能换钱。两边的人已经在地头吵起来了，各说各的理。",
+      "prompt_hint": "厨娘会插话替两边各说一句，她其实谁都心疼。",
+      "choices": [
+        {
+          "text": "先保棉田",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.winter_ready",
+              "value": true
+            }
+          ],
+          "outcome": "棉苗活了下来。瓜田的人骂了一整天，但冬天来了以后，没人再骂。"
+        },
+        {
+          "text": "先保瓜田",
+          "hint": "逐利",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 2
+            }
+          ],
+          "outcome": "瓜熟得又快又甜，商队抢着要。钱是有了，可棉田那边只收了一小把。"
+        },
+        {
+          "text": "按人头平均分",
+          "hint": "公允",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.fruit",
+              "value": 5
+            }
+          ],
+          "outcome": "两边都少收了三成，但没人再吵架。厨娘说：'这才像个过日子的人家。'"
+        },
+        {
+          "text": "定下水规，按月轮换",
+          "hint": "制度化",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.water_law",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家立了水规，老坎匠认为这是明智的"
+              }
+            }
+          ],
+          "outcome": "你用木牌刻了水规立在渠边。老坎匠去看了一眼，回来对别人说：'这法子能用。'"
+        }
+      ]
+    },
+    {
+      "id": "mgt_grape_harvest",
+      "category": "manage",
+      "title": "葡萄压弯了枝",
+      "weight": 70,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        },
+        {
+          "op": "has",
+          "path": "flags.grape_planted"
+        }
+      ],
+      "text": "葡萄结得比预想的多，竹筐都不够用。但熟透的葡萄放不过五天。晾房还没砌完，晒干需要更多柴火。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "先吃鲜的，办个聚会",
+          "hint": "士气",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "resources.food.fruit",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 5
+            }
+          ],
+          "outcome": "热合曼江弹到半夜，连老坎匠都在角落里跟着哼。第二天大家干活都精神。"
+        },
+        {
+          "text": "抓紧砌晾房，做成葡萄干",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 20
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.food.fruit",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "buildings.liangfang",
+              "value": 1
+            }
+          ],
+          "outcome": "晾房赶在霜前砌好了。墙上留的花格透着光，葡萄挂在里面像一串串小灯笼。能放到明年。"
+        },
+        {
+          "text": "全卖了，换现钱",
+          "hint": "逐利",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 18
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -4
+            }
+          ],
+          "outcome": "钱到手了。孩子们在门口站了半天，没人给他们留一串。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_well_collapse_risk",
+      "category": "manage",
+      "title": "井壁在渗沙",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 15,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 3
+        }
+      ],
+      "text": "第三段竖井的井壁开始细细地往下渗沙，一天能积一掌厚。老坎匠用手抹了一把，放在鼻子上闻，说这土是活的，底下是空的。",
+      "prompt_hint": "老坎匠会坚持停下来加固。若玩家选择继续，他会明确表示反对但不罢工。",
+      "choices": [
+        {
+          "text": "停下来加固井壁",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.third_shaft_reinforced",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家听他的劝，停下来加固了第三段井壁"
+              }
+            }
+          ],
+          "outcome": "花了三天木料和工夫。加固完第二天，那段井壁自己塌了一角——塌在支架上，没伤到人。老坎匠什么也没说，但你看见他松了口气。"
+        },
+        {
+          "text": "继续挖，赶工期要紧",
+          "hint": "激进",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -8
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.ignored_collapse_warning",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家无视了他的警告，继续下挖。他很生气"
+              }
+            }
+          ],
+          "outcome": "水确实多出了一些。但老坎匠从此只站在井口看着，不再下去。他说：'你要挖，你自己挖。'"
+        },
+        {
+          "text": "问问老坎匠当年出过什么事",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 1
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_lao_kanjiang_past",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家问起了他的过去，他没答，转身走了"
+              }
+            }
+          ],
+          "outcome": "他沉默了很久，只说了三个字：'别提了。' 然后拄着坎土曼一瘸一拐地走开了。你注意到他的左腿。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_caravan_arrives",
+      "category": "manage",
+      "title": "驼铃从东边来",
+      "weight": 90,
+      "repeatable": true,
+      "cooldown_days": 8,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 10
+        },
+        {
+          "op": "has",
+          "path": "buildings.yiguan"
+        }
+      ],
+      "text": "十二峰骆驼，四个人，驼队停在驿站外。领头的是个褐袍中年人，先绕着涝坝走了一圈，蹲下来看水色，然后才过来问价。",
+      "prompt_hint": "陈守业会先看水。他的第一句话必然与水和价钱有关，不会寒暄。",
+      "choices": [
+        {
+          "text": "按正常价接待",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 2
+            }
+          ],
+          "outcome": "他付了钱，临走时把他的水囊灌满，还多问了一句：'明年这时候，你还在吧？'"
+        },
+        {
+          "text": "降到半价，留住他",
+          "hint": "投资",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            },
+            {
+              "memory": {
+                "character": "hanshang_zhanggui",
+                "text": "玩家第一次接待商队时给了半价"
+              }
+            }
+          ],
+          "outcome": "他多看了你两眼，说：'你这不是做生意的算法。' 但他留下了，还留了两匹布。"
+        },
+        {
+          "text": "先问他从哪来、路上怎么样",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 9
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_road_conditions",
+              "value": true
+            }
+          ],
+          "outcome": "他告诉你西边三十里外的水井干了，另外有人在莫贺延碛边上劫道。这两条消息后来救了你的商队。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_grain_shortage",
+      "category": "manage",
+      "title": "粮缸见了底",
+      "weight": 75,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "lte",
+          "path": "resources.food.grain",
+          "value": 8
+        }
+      ],
+      "text": "厨娘把粮缸刮得噼啪响，然后站在门口不说话。你已经知道结果了。她最后还是开口：'还能吃三天，省着能吃五天。'",
+      "prompt_hint": "厨娘不会抱怨，她会直接把最坏的情况说清楚，然后准备去想办法。",
+      "choices": [
+        {
+          "text": "派人去部落借粮",
+          "hint": "外交",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.food.grain",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.debt_to_tribe",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "hasake_qishou",
+                "text": "玩家向部落借粮，他帮忙说了话"
+              }
+            }
+          ],
+          "outcome": "叶尔兰骑着马跑了一趟，回来时带了十五袋粮。他没说过程，但你知道他一定为自己的部落说了不少好话。这笔粮是要还的。"
+        },
+        {
+          "text": "缩减口粮，每人减半",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -12
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": -6
+            },
+            {
+              "op": "set",
+              "path": "flags.rationing",
+              "value": true
+            }
+          ],
+          "outcome": "没人当面反对。但晚上灶前没人说话，连篝火都烧得小。厨娘给你盛了一碗和所有人一样稀的粥。"
+        },
+        {
+          "text": "卖掉一些物产换粮",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "resources.food.grain",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            }
+          ],
+          "outcome": "布换成了粮。过冬的衣裳要少了，但眼前这关过了。"
+        },
+        {
+          "text": "去坎儿井边看看能不能捞鱼",
+          "hint": "投机",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.food.meat",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 3
+            }
+          ],
+          "outcome": "涝坝深处居然有鱼。厨娘做了一锅鱼汤，全驿站都来了精神。但这只是一顿，不是长久之计。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_bazaar_first_day",
+      "category": "manage",
+      "title": "巴扎开张",
+      "weight": 85,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "buildings.bazha"
+        },
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 20
+        }
+      ],
+      "text": "巴扎开张那天来了四十多个人，比预想的多。热合曼江搬了张毯子坐在中间弹琴，孩子们围着听。到下午，有三拨人因为摊位的位置吵了起来。",
+      "prompt_hint": "热合曼江会用音乐把冲突岔开，他处理这种事很熟。",
+      "choices": [
+        {
+          "text": "定下摊位规矩，抽成八分",
+          "hint": "制度化",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.bazaar_rules",
+              "value": true
+            }
+          ],
+          "outcome": "有人嫌抽成高，但没走。热合曼江说：'规矩立在前头，总比事后扯皮好。'"
+        },
+        {
+          "text": "头一个月不收抽成",
+          "hint": "投资",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.bazaar_free_month",
+              "value": true
+            }
+          ],
+          "outcome": "消息传得很快。第二周就有人从三十里外来摆摊。钱是没赚到，但巴扎活了。"
+        },
+        {
+          "text": "让热合曼江来管规矩",
+          "hint": "放权",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.muqam_manages_bazaar",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "muqam_yiren",
+                "text": "玩家把巴扎的规矩交给他管，他很高兴"
+              }
+            }
+          ],
+          "outcome": "他弹了一段，然后站起来把三拨人分别拉到一边说了三句话，事情就平了。你不知道他说了什么。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_traveler_pays_double",
+      "category": "manage",
+      "title": "多给钱的客人",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "buildings.yiguan"
+        }
+      ],
+      "text": "一个赶驼人住了一晚，第二天早上把两倍的钱放在柜上。他说：'你们这儿的水甜。' 钱比行情多出不少。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "收下",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "他走的时候回头看了一眼涝坝。后来他又来了三次。"
+        },
+        {
+          "text": "只收行价，多的退回去",
+          "hint": "守信",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 3
+            }
+          ],
+          "outcome": "他很意外。他说他走了十几年，头回见退钱的。这件事后来在商队之间传开了。"
+        },
+        {
+          "text": "问问他这水跟别处比怎么样",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_water_reputation",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "他说东边三个驿站的水都带咸味，只有你这儿是甜的。你第一次意识到这条坎儿井值多少钱。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_night_soil",
+      "category": "manage",
+      "title": "地头的夜肥不见了",
+      "weight": 40,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 10
+        }
+      ],
+      "text": "田里的肥堆少了一半。有人半夜运走了。脚印往东边去了，但白天没人承认。",
+      "prompt_hint": "厨娘可能知道是谁，但她会先试探玩家的态度再决定说不说。",
+      "choices": [
+        {
+          "text": "公开查，谁拿谁赔",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -6
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": -4
+            }
+          ],
+          "outcome": "查出来是东头那家寡妇。她赔不出，最后是你自己垫的。厨娘三天没跟你说话。"
+        },
+        {
+          "text": "私下找厨娘打听",
+          "hint": "迂回",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_soil_thief",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "chuniang",
+                "text": "玩家私下问她肥的事，她说了实话"
+              }
+            }
+          ],
+          "outcome": "厨娘叹了口气，说是东头那家。她男人去年冬天没了，地里什么都种不出来。她说：'你要是罚她，我也没话说。但你要是不罚，我替她记着。'"
+        },
+        {
+          "text": "当作没发生，加派人夜里巡田",
+          "hint": "默许",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 6
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 5
+            }
+          ],
+          "outcome": "你什么也没说。过了半个月，那家寡妇自己送来两筐菜。厨娘笑了，眼睛有点红。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_wall_gap",
+      "category": "manage",
+      "title": "围墙缺口",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 18,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "buildings.weijiang"
+        },
+        {
+          "op": "gte",
+          "path": "stats.security",
+          "value": 20
+        }
+      ],
+      "text": "西墙塌了一段，能过两个人。老坎匠说这是去年冬天冻裂的，土里进了水。补上不难，但要三天人手和一批土石。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "立刻补上",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            }
+          ],
+          "outcome": "三天后墙补好了。第四天夜里，有人在墙外转了一圈就走了。"
+        },
+        {
+          "text": "把缺口做成陷阱口",
+          "hint": "狡诈",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 8
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.wall_trap",
+              "value": true
+            }
+          ],
+          "outcome": "你让人在缺口内侧挖了坑，覆上草席。老坎匠看了半天，说：'这不像驿丞该干的事。' 但他没拆。"
+        },
+        {
+          "text": "先不补，人手用在坎儿井上",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 5
+            },
+            {
+              "op": "sub",
+              "path": "stats.security",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.wall_gap_open",
+              "value": true
+            }
+          ],
+          "outcome": "水多了一点。但那段缺口一直在那儿，像一颗牙掉了没补。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_bathhouse_idea",
+      "category": "manage",
+      "title": "有人说想洗个热水澡",
+      "weight": 35,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 60
+        },
+        {
+          "op": "gte",
+          "path": "karez.reservoir_level",
+          "value": 2
+        }
+      ],
+      "text": "一个商队伙计随口说，走了一个月，最想的是洗个热水澡。热合曼江听见了，说这话值钱——要是驿站有热水，商队愿意多住一晚。",
+      "prompt_hint": "热合曼江会立刻把这件事变成一门生意的设想，他脑子转得快。",
+      "choices": [
+        {
+          "text": "建浴房，烧热水",
+          "hint": "投资",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 15
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "buildings.bathhouse",
+              "value": 1
+            }
+          ],
+          "outcome": "浴房开张头一天，商队排到了门外。热合曼江在旁边弹琴，说这叫'水要卖两次'——先洗人，再浇地。"
+        },
+        {
+          "text": "只给住店客人供热水",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 6
+            }
+          ],
+          "outcome": "省事，也够用。但热合曼江说：'你这生意做得太小心了。'"
+        },
+        {
+          "text": "不划算，水要留给地",
+          "hint": "保守",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": -3
+            }
+          ],
+          "outcome": "老坎匠点头了：'水就该浇地。' 热合曼江耸了耸肩，没再提。但你知道他记着这件事。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_snow_melt_news",
+      "category": "manage",
+      "title": "山上雪水比往年少",
+      "weight": 65,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        },
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 2
+        }
+      ],
+      "text": "从雪山那边回来的牧民说，今年的雪线比往年高，山上的雪看着薄。他说完就去喝他的茶了，好像这是件小事。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "提前储水，加高涝坝",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 18
+            },
+            {
+              "op": "add",
+              "path": "karez.reservoir_level",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 40
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            },
+            {
+              "op": "set",
+              "path": "flags.prepared_for_dry_winter",
+              "value": true
+            }
+          ],
+          "outcome": "大家累了一个月把涝坝加高。冬天来得又快又冷，但涝坝是满的。"
+        },
+        {
+          "text": "改种耐旱的作物",
+          "hint": "适应",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.fruit",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.food.grain",
+              "value": 12
+            },
+            {
+              "op": "set",
+              "path": "flags.planted_drought_crops",
+              "value": true
+            }
+          ],
+          "outcome": "瓜田改成了麦地。收成少了一点，但不用天天盯着水。"
+        },
+        {
+          "text": "不太可能吧，照常过",
+          "hint": "轻忽",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.ignored_drought_warning",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            }
+          ],
+          "outcome": "那年冬天，井里出的水比往年少了一半。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_craft_tools",
+      "category": "manage",
+      "title": "作坊的第一批活",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 22,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "buildings.zuofang"
+        }
+      ],
+      "text": "作坊开起来了。第一件事是打镢头还是织布？打镢头能多挖井，织布能卖钱也能做冬衣。炉子只有一个。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "打工具",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.tools",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 4
+            }
+          ],
+          "outcome": "四把新镢头。老坎匠拿起来掂了掂，说比外面买的好。这是他头一回夸东西好。"
+        },
+        {
+          "text": "织布",
+          "hint": "逐利",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            }
+          ],
+          "outcome": "布织出来了，有人拿去做冬衣。厨娘摸着布说：'这手感，比外头买的强。'"
+        },
+        {
+          "text": "两样都做一点",
+          "hint": "平衡",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.tools",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 2
+            }
+          ],
+          "outcome": "什么都不缺，什么都不够。匠人说：'这样干活，炉子白烧。'"
+        }
+      ]
+    },
+    {
+      "id": "mgt_child_asks_water",
+      "category": "manage",
+      "title": "小孩要水喝",
+      "weight": 30,
+      "repeatable": true,
+      "cooldown_days": 15,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "lte",
+          "path": "resources.water.current",
+          "value": 60
+        }
+      ],
+      "text": "一个小孩捧着一个缺口的碗站在涝坝边上，看着水里自己的影子。他没说话，但手一直举着。旁边的大人拉了他一下，他不动。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "给他舀满",
+          "hint": "善意",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "小孩喝完把碗还给你，说了一声谢谢就跑。厨娘在门口看着，转身进灶房了，出来时手里多拿了一块馕。"
+        },
+        {
+          "text": "先按人头定量",
+          "hint": "规矩",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -4
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": -3
+            }
+          ],
+          "outcome": "你按定量给了半碗。小孩喝了，但他看你的时候你有点不敢看回去。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_well_inspection",
+      "category": "manage",
+      "title": "暗渠该下去看看了",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 2
+        }
+      ],
+      "text": "暗渠里积了泥，水流量降了两成。下井清淤有风险，但不清会越来越堵。老坎匠说，得有人爬进去。",
+      "prompt_hint": "老坎匠会想去，但他的腿不允许。他会让年轻人去，然后站在井口一句话不说地等。",
+      "choices": [
+        {
+          "text": "派两名居民下去清淤",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 20
+            }
+          ],
+          "outcome": "两个人爬了半个时辰，出来时从头到脚全是泥。老坎匠在井口站着没动，等他们出来才转身。清出来的泥堆在渠边，像一座小山。"
+        },
+        {
+          "text": "玩家自己下去",
+          "hint": "亲力",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 20
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家自己下暗渠清淤，老坎匠嘴上骂了但心里认了他"
+              }
+            }
+          ],
+          "outcome": "你在里面待了半个时辰，出来时耳朵里全是水声。老坎匠骂了你一句'胡闹'，然后递给你一壶水。晚上厨娘煮了肉。"
+        },
+        {
+          "text": "等更好的工具再说",
+          "hint": "拖延",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.flow_per_day",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -3
+            }
+          ],
+          "outcome": "水又少了一些。老坎匠每天路过井口都停一下，然后走开。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_festival_prep",
+      "category": "manage",
+      "title": "要不要办一场",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 40,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 80
+        },
+        {
+          "op": "has",
+          "path": "buildings.yinletai"
+        }
+      ],
+      "text": "热合曼江说他手上有几个会跳会唱的，凑一凑能办一场。但要搭台、要酒、要吃，三天不干活。",
+      "prompt_hint": "厨娘听到要办聚会会立刻开始盘算要准备多少吃的，她是真心高兴。",
+      "choices": [
+        {
+          "text": "办，就在麦西热甫",
+          "hint": "士气",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 12
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.fruit",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.first_festival",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "muqam_yiren",
+                "text": "玩家同意办了驿站的第一场聚会"
+              }
+            }
+          ],
+          "outcome": "那晚点了一大堆火，热合曼江弹到手都抬不起来。老坎匠坐在最边上，跟着节奏用坎土曼敲地面。天亮时没人想动。之后半个月，没有一个居民说要走。"
+        },
+        {
+          "text": "小办一下就行",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.fruit",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            }
+          ],
+          "outcome": "就着几盘果子和一壶茶，也热闹了一阵。热合曼江说：'俭省是好事，可惜曲子长了没人听。'"
+        },
+        {
+          "text": "不办，时间紧",
+          "hint": "效率",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -8
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": -6
+            }
+          ],
+          "outcome": "多干了三天的活。但那几天晚上，院里都没有人唱歌。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_elder_complaint",
+      "category": "manage",
+      "title": "几位老人有话要说",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 15
+        }
+      ],
+      "text": "三个老人坐在墙根下，见你过来就都不说话了。你站了一会儿，其中一个才开口，说年轻人现在不怎么听老人的话了。",
+      "prompt_hint": "这是代际冲突的引子，不宜简单化。老人有对的地方，年轻人也有。",
+      "choices": [
+        {
+          "text": "请他们参与定规矩",
+          "hint": "尊重",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 5
+            }
+          ],
+          "outcome": "一个月后你发现，老人定的几条规矩其实挺管用——比如渠边的树不能砍，那是他们年轻时种的。"
+        },
+        {
+          "text": "让他们带年轻人干活",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 2
+            }
+          ],
+          "outcome": "老人教年轻人怎么选木料、怎么辨土。手艺传下去了，抱怨也少了。"
+        },
+        {
+          "text": "现在顾不上这些",
+          "hint": "轻忽",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -6
+            },
+            {
+              "op": "set",
+              "path": "flags.elder_discontent",
+              "value": true
+            }
+          ],
+          "outcome": "他们没再说什么。但从那以后，墙根下坐的人少了。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_muqam_song_choice",
+      "category": "manage",
+      "title": "他问你想听哪一段",
+      "weight": 70,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "characters.muqam_yiren.affinity",
+          "value": 20
+        }
+      ],
+      "text": "热合曼江抱着热瓦普坐在门口，问你今天想听哪一段。他说有两段：一段是热闹的，听的人多；另一段很慢，他自己很多年没弹了。",
+      "prompt_hint": "慢的那一段与他自己有关（可能是他弟弟或故乡），他不会直说。玩家的选择会决定他是否愿意靠近。",
+      "choices": [
+        {
+          "text": "听热闹的那段",
+          "hint": "合群",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 2
+            }
+          ],
+          "outcome": "院子里的人越聚越多，有人跳起舞来。他弹得很开心，但散场后他说了一句'今天弹得轻'。"
+        },
+        {
+          "text": "听那段慢的",
+          "hint": "亲近",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 10
+            },
+            {
+              "op": "set",
+              "path": "flags.heard_slow_song",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "muqam_yiren",
+                "text": "玩家主动选了他多年没弹的那段慢曲，他很意外"
+              }
+            }
+          ],
+          "outcome": "他愣了一下，然后调了调弦。那段曲子很慢，只有他一个人弹。弹到一半他停了，说'剩下的记不清了'。但你知道他记得，只是不想弹。"
+        },
+        {
+          "text": "让他自己决定",
+          "hint": "不介入",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.muqam_yiren.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "他想了想，弹了热闹的那段。你注意到他挑弦的时候看了你一眼。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_first_winter_warning",
+      "category": "manage",
+      "title": "第一场霜",
+      "weight": 95,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        }
+      ],
+      "text": "早上起来，水面上结了一层薄冰，一碰就碎。厨娘搓着手说，该准备过冬了。这是你在驿站经历的第一个冬天。",
+      "prompt_hint": "厨娘会把过冬要准备的东西一件件数出来，她的清单很实际。老坎匠则提醒冬天水会少。",
+      "choices": [
+        {
+          "text": "全力备冬：粮、柴、衣",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "resources.food.grain",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 15
+            },
+            {
+              "op": "set",
+              "path": "flags.winter_prepared",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 8
+            },
+            {
+              "memory": {
+                "character": "chuniang",
+                "text": "玩家在入冬前全力准备了物资，她很高兴"
+              }
+            }
+          ],
+          "outcome": "厨娘把粮袋一袋袋码进仓里，码到手臂酸了还笑。冬天来的时候，驿站里没有人饿着。"
+        },
+        {
+          "text": "重点储水，粮可以省",
+          "hint": "押注",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 60
+            },
+            {
+              "op": "add",
+              "path": "karez.reservoir_level",
+              "value": 0
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 6
+            }
+          ],
+          "outcome": "涝坝蓄满了。老坎匠说：'水比粮要紧。' 但那年冬天，粮确实紧。"
+        },
+        {
+          "text": "先照常过，冷了再说",
+          "hint": "侥幸",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.unprepared_winter",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -4
+            }
+          ],
+          "outcome": "厨娘看了你一眼，什么也没说，回灶房去了。她的清单还压在案板上。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_irrigation_dispute",
+      "category": "manage",
+      "title": "渠水被上游截了",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.channels",
+          "value": 2
+        }
+      ],
+      "text": "早上明渠里的水只有平时一半。有人在上游垒了个土埂，把水引到自己的地里去了。垒埂的是驿站自己的人。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "拆掉，当众说明水规",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.water_law_enforced",
+              "value": true
+            }
+          ],
+          "outcome": "土埂拆了，水回来了。那家人一整天没出门。第二天他媳妇来道歉，手里提着一篮子鸡蛋。"
+        },
+        {
+          "text": "分他一半，另想办法",
+          "hint": "温和",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "他家地基质差，那块地确实靠渠尾喝不到水。你让人在渠尾多开了一个口子。厨娘说：'你这人办事情，留后手。'"
+        },
+        {
+          "text": "装看不见",
+          "hint": "回避",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.water_dispute_unresolved",
+              "value": true
+            }
+          ],
+          "outcome": "三天后又有第二个人垒了埂。这次你不好说什么了。"
+        }
+      ]
+    },
+    {
+      "id": "mgt_apprentice_progress",
+      "category": "manage",
+      "title": "学徒挖到了暗河的一点痕迹",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.has_apprentice"
+        }
+      ],
+      "text": "学徒兴奋地跑来说，他在第四段井底摸到了湿得不一样的土，比别处凉，还有股铁腥味。老坎匠听完，脸色变了。",
+      "prompt_hint": "学徒摸到的正是老坎匠隐瞒的那处暗河。老坎匠的反应是本条事件的核心。",
+      "choices": [
+        {
+          "text": "顺着他指的方向挖",
+          "hint": "冒险",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -10
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.found_underground_river",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "玩家挖到了那处暗河，老坎匠一句话没说就走开了"
+              }
+            }
+          ],
+          "outcome": "水突然涌了出来，比预期多得多。所有人都在欢呼。只有老坎匠站在井口外面，脸朝着雪山那边。晚上他喝了很多茶，一句话没说。"
+        },
+        {
+          "text": "先问老坎匠的意见",
+          "hint": "尊重",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.asked_about_river",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "他沉默了很久，最后说：'往下挖三丈，别多挖。' 你照做了。水来了，但没有想象的多——他大概是故意的。"
+        },
+        {
+          "text": "让学徒别声张",
+          "hint": "保守",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.kept_river_secret",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            }
+          ],
+          "outcome": "你让学徒别到处说。老坎匠听见了这句话，看了你一眼。那一眼里有别的东西。"
+        }
+      ]
+    },
+    {
+      "id": "exp_first_departure",
+      "category": "explore",
+      "title": "第一次出门",
+      "weight": 100,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 5
+        }
+      ],
+      "text": "要派人出去看看。但派谁？叶尔兰第一个站起来。厨娘在门口给他们装干粮，装了两次，第二次又加了三个馕。",
+      "prompt_hint": "厨娘会坚持多给干粮，即使玩家说够了。叶尔兰会嫌东西带太多。",
+      "choices": [
+        {
+          "text": "叶尔兰带队，多带水",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 0
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.party_out",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "叶尔兰把水囊检查了三遍才上马。他走的时候没回头，但出村口的时候喊了一声——你没听清是什么。"
+        },
+        {
+          "text": "派老坎匠去看水源（他熟悉地势）",
+          "hint": "专长",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_water_sources",
+              "value": true
+            }
+          ],
+          "outcome": "他两天就回来了，只说了一句：'山那边的水比这边好。' 然后就进屋了。但他带回来的那块石头确实是含水层的样子。"
+        },
+        {
+          "text": "自己带队去",
+          "hint": "亲力",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.leader_explores",
+              "value": true
+            }
+          ],
+          "outcome": "你走了三天。回来时驿站的人都在门口等着，厨娘先看的是你的脸，不是你的马。"
+        }
+      ]
+    },
+    {
+      "id": "exp_ruins",
+      "category": "explore",
+      "title": "风把墙吹出来了",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一场大风过后，沙丘挪了位置，露出一截土墙。墙上还有洞，像是曾经插过木梁。叶尔兰在旁边转了一圈，说这地方以前住过人。",
+      "prompt_hint": "神秘旅人如果同行，会注意到别人忽略的细节（比如墙上某个符号）。",
+      "choices": [
+        {
+          "text": "挖开看看",
+          "hint": "冒险",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.tools",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -2
+            }
+          ],
+          "outcome": "挖出几根还没烂透的梁木，一把锈得快没了的刀。最里面有个罐子，空的。"
+        },
+        {
+          "text": "只取能用的，不深挖",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "取了几根梁木就走。叶尔兰有点不甘心，但他没说什么。"
+        },
+        {
+          "text": "记下位置，先回去报信",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.ruins_marked",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 2
+            }
+          ],
+          "outcome": "你在地图上画了个记号。回来路上叶尔兰一直在回头。"
+        }
+      ]
+    },
+    {
+      "id": "exp_bandit_tracks",
+      "category": "explore",
+      "title": "马蹄印是新的",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 18,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "沙地上有一片马蹄印，十几匹，方向是往驿站那边去的。印子边缘还硬着，说明是今天早上的。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "立刻折返报信",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.bandit_warning",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "你们连夜赶回，驿站提前做了准备。三天后马匪果然来了一趟，看到围墙上的火把就绕走了。"
+        },
+        {
+          "text": "跟上去看看",
+          "hint": "冒险",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.found_bandit_camp",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            }
+          ],
+          "outcome": "你们远远地看到了他们的宿营地，二十几个人，十几匹马。叶尔兰盯着看了很久，回去的路上一句话没说。"
+        },
+        {
+          "text": "原路绕过，先完成原定任务",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -3
+            }
+          ],
+          "outcome": "任务完成了。但回到驿站时，门口新添了两道血印子。"
+        }
+      ]
+    },
+    {
+      "id": "exp_sandstorm",
+      "category": "explore",
+      "title": "天边那道黄墙",
+      "weight": 70,
+      "repeatable": true,
+      "cooldown_days": 15,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "天边出现一道齐整的黄墙，正在往这边移。叶尔兰在你还没反应过来的时候已经开始收帐篷了。风里有沙子的味道。",
+      "prompt_hint": "叶尔兰在草原上长大，对天气的判断比玩家准。他会直接下命令，不请示。",
+      "choices": [
+        {
+          "text": "听叶尔兰的，立刻扎营躲",
+          "hint": "信任",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            }
+          ],
+          "outcome": "沙暴刮了四个时辰。帐篷塌了一半，但人都没事。叶尔兰守在门口，用背顶着杆子。"
+        },
+        {
+          "text": "抢在沙暴前赶回驿站",
+          "hint": "激进",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -5
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.tools",
+              "value": -1
+            }
+          ],
+          "outcome": "你们跑赢了沙暴，最后一段是被风推着走的。丢了一把镢头，一头骆驼再也不肯往前走。"
+        },
+        {
+          "text": "继续前进，绕开沙暴边缘",
+          "hint": "赌博",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -8
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.lost_in_storm",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -5
+            }
+          ],
+          "outcome": "你们在风里迷了两天。叶尔兰没抱怨，但从那以后他再没让你单独决定过路线。"
+        }
+      ]
+    },
+    {
+      "id": "exp_abandoned_well",
+      "category": "explore",
+      "title": "一口别人的旧井",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 22,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "路边有一口井，井口用石头封着。石头上刻的字被风磨得快看不清了。井绳还在，烂了一半。",
+      "prompt_hint": "老坎匠若同行会认得这种封法，他会说这是'封井'，有讲究。",
+      "choices": [
+        {
+          "text": "打开看看",
+          "hint": "好奇",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 25
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.opened_old_well",
+              "value": true
+            }
+          ],
+          "outcome": "石头搬开，下面有水，很凉。但水面上浮着一层东西，闻着不对。你们只灌了一囊就走了。"
+        },
+        {
+          "text": "按老规矩，不碰封井",
+          "hint": "敬畏",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.respected_sealed_well",
+              "value": true
+            }
+          ],
+          "outcome": "老坎匠后来听说这件事，点了点头：'封着的井不能动。那底下埋着东西。' 他没说是埋着什么。"
+        },
+        {
+          "text": "记下位置，回去查是谁封的",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            },
+            {
+              "op": "set",
+              "path": "flags.sealed_well_question",
+              "value": true
+            }
+          ],
+          "outcome": "你问了几个老人，他们都说不知道。但有一个人的眼神闪了一下。"
+        }
+      ]
+    },
+    {
+      "id": "exp_wolves",
+      "category": "explore",
+      "title": "狼跟了一整夜",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        },
+        {
+          "op": "is",
+          "path": "season",
+          "value": "winter"
+        }
+      ],
+      "text": "天亮时你发现营地外面有一圈狼爪印，围着火堆转了三圈。守夜的叶尔兰说他听见了，但没喊——喊了会让它们更兴奋。",
+      "prompt_hint": "叶尔兰的处置方式体现他的实战经验，他会轻描淡写。",
+      "choices": [
+        {
+          "text": "继续走，保持火不灭",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "它们跟了两天，第三天下雪就没再跟。叶尔兰说冬天狼都饿，它们也在赌。"
+        },
+        {
+          "text": "设陷阱，打一头回去",
+          "hint": "获取",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.food.meat",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 2
+            }
+          ],
+          "outcome": "打到一头，皮毛也好。叶尔兰剥皮的手法快得吓人。回去后厨娘炖了一大锅。"
+        },
+        {
+          "text": "扔些干粮引开它们",
+          "hint": "回避",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            }
+          ],
+          "outcome": "狼把干粮吃了，但也记住了这条路有人喂食。"
+        }
+      ]
+    },
+    {
+      "id": "exp_traveler_join",
+      "category": "explore",
+      "title": "沙漠中间坐着一个人",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一个人坐在沙丘背风面，没有骆驼，没有行李，衣服却不算太脏。他看见你们，只是抬了下头。",
+      "prompt_hint": "神秘旅人首次登场用这条。他不能被写成求救者，他是从容的。",
+      "choices": [
+        {
+          "text": "给他水和干粮，问来历",
+          "hint": "善意",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": -5
+            },
+            {
+              "op": "set",
+              "path": "flags.met_traveler",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            }
+          ],
+          "outcome": "他喝了水，道了谢，说自己姓卢，往西去。再问就不答了。他跟着你们回了驿站，说会付钱。"
+        },
+        {
+          "text": "不理，继续赶路",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.passed_traveler",
+              "value": true
+            }
+          ],
+          "outcome": "走出两里，叶尔兰回头看了一眼，说那人还在原地坐着。"
+        },
+        {
+          "text": "远远问一句需不需要带路",
+          "hint": "中立",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.met_traveler",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "他说不用，方向他记得。然后他补了一句：'你们那口井，挖到第几段了？' 你确定你没提过驿站有井。"
+        }
+      ]
+    },
+    {
+      "id": "exp_caravan_meet",
+      "category": "explore",
+      "title": "路上遇到商队",
+      "weight": 65,
+      "repeatable": true,
+      "cooldown_days": 15,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "对面来了一支商队，八峰骆驼，走的很慢。领队的看见你们就停下了，先看你们的马，再看你们的货。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "就地交易",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "换了些盐和工具。对方压了价，但你也压了他的。"
+        },
+        {
+          "text": "只打听消息，不交易",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.knows_road_conditions",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "他告诉你们，往西二百里的绿洲去年被沙埋了，商路改道了。这个消息比一峰骆驼值钱。"
+        },
+        {
+          "text": "提出护送，收点钱",
+          "hint": "进取",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "护送了三天，路上什么也没遇到。对方照付了钱，说下次还找你们。叶尔兰有点失望——他想打一场。"
+        }
+      ]
+    },
+    {
+      "id": "exp_salt_flats",
+      "category": "explore",
+      "title": "白得刺眼的地方",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "前面的地白得发亮，走过去鞋底会结一层壳。舔一下是咸的。没人想到这地方有盐。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "采盐，运回去",
+          "hint": "获取",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.earth",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 12
+            },
+            {
+              "op": "set",
+              "path": "flags.has_salt_source",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 5
+            }
+          ],
+          "outcome": "两袋盐。回去以后厨娘抱着袋子看了半天，说这下腌肉能过冬了。"
+        },
+        {
+          "text": "记住位置，先探其它方向",
+          "hint": "规划",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.salt_marked",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "你在图上画了个圈。回来的路上你们又发现了一条干涸的旧河道。"
+        },
+        {
+          "text": "在这里扎营一天，让牲口也吃点盐",
+          "hint": "休整",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.earth",
+              "value": 2
+            }
+          ],
+          "outcome": "骆驼舔盐舔得很起劲。叶尔兰说马吃了盐跑得更有劲。这一晚大家睡得都很好。"
+        }
+      ]
+    },
+    {
+      "id": "exp_lost_road",
+      "category": "explore",
+      "title": "路没了",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "沙丘把路整个埋了。叶尔兰站在高处看了很久，说方向没错，但走法得换。水还剩一天的量。",
+      "prompt_hint": "叶尔兰会坚持自己认路，但这次他也犹豫。他会嘴硬。",
+      "choices": [
+        {
+          "text": "听叶尔兰的，绕行",
+          "hint": "信任",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 4
+            }
+          ],
+          "outcome": "多走了半天，但走出来了。叶尔兰一路上没说话，直到看见驿站的火光才开口：'我说能行。'"
+        },
+        {
+          "text": "原路退回",
+          "hint": "保守",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -3
+            }
+          ],
+          "outcome": "退回去了，安全的。叶尔兰把马牵进马厩的时候力道大得吓人。"
+        },
+        {
+          "text": "等夜里看星星定方向",
+          "hint": "经验",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.learned_star_nav",
+              "value": true
+            }
+          ],
+          "outcome": "叶尔兰指着几颗星说他阿爸教过他。你们半夜出发，天亮时正对着驿站的烽燧。他笑得像个小孩。"
+        }
+      ]
+    },
+    {
+      "id": "exp_grave",
+      "category": "explore",
+      "title": "沙里露出半块木牌",
+      "weight": 40,
+      "repeatable": true,
+      "cooldown_days": 35,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "木牌上刻着字，被沙磨得只剩一半。牌子下面鼓起一小堆土。叶尔兰停下来，摘了帽子。",
+      "prompt_hint": "这条事件要处理得体。不要提宗教仪式细节，只写具体的行为与沉默。",
+      "choices": [
+        {
+          "text": "停下，把牌子重新立好",
+          "hint": "敬意",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.respect_grave",
+              "value": true
+            }
+          ],
+          "outcome": "叶尔兰用手把土拍实。他说：'路上的人都这样。看见了就管一管。' 你们在那儿待了一刻钟。"
+        },
+        {
+          "text": "看看牌子写了什么",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            },
+            {
+              "op": "set",
+              "path": "flags.read_grave_marker",
+              "value": true
+            }
+          ],
+          "outcome": "只剩一个姓和半个地名。叶尔兰认出了那个地名，说离这里三百里。"
+        },
+        {
+          "text": "不停，赶路要紧",
+          "hint": "效率",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            }
+          ],
+          "outcome": "叶尔兰上马之前回头看了一眼。之后半天他都没跟你说话。"
+        }
+      ]
+    },
+    {
+      "id": "exp_stream",
+      "category": "explore",
+      "title": "前面有水声",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "翻过一道梁，下面是一条真正的河。不大，但一直在流，水边长着一排胡杨。所有人都在原地站住了。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "取水，灌满所有水囊",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 40
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            }
+          ],
+          "outcome": "水囊全灌满了。有人脱了鞋下水，被叶尔兰骂了——他说水凉，会病。"
+        },
+        {
+          "text": "勘察能否引水到驿站",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.found_river_source",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            }
+          ],
+          "outcome": "你沿着河走了一天，发现它到五十里外就渗进地下了。这个发现后来让老坎匠非常激动——那是暗渠的方向。"
+        },
+        {
+          "text": "在河边的胡杨林里砍木材",
+          "hint": "获取",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 18
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -4
+            }
+          ],
+          "outcome": "砍了两天，装满了四头骆驼。老坎匠听说砍的是活胡杨，说了一句'树是挡风的'，但没再说什么。"
+        }
+      ]
+    },
+    {
+      "id": "exp_drought_camp",
+      "category": "explore",
+      "title": "空掉的营地",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一个游牧营地，毡房还在，人没了。锅里有煮到一半的东西，狗瘦得能看见肋骨，但还活着，看见人就摇尾巴。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "带狗回去，留下水和粮",
+          "hint": "善意",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 5
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.adopted_dog",
+              "value": true
+            }
+          ],
+          "outcome": "狗跟着你们回来了。厨娘给它取了名字，还分了半块馕。没有人问营地的人去了哪。"
+        },
+        {
+          "text": "搜一下有什么能用的",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -5
+            }
+          ],
+          "outcome": "毡房的木架和几块毡子。叶尔兰动手的时候很慢，说了一句：'他们可能还会回来。'"
+        },
+        {
+          "text": "查一下人去哪了",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.knows_displaced_nomads",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "脚印往北去了，很多人，还有车辙。叶尔兰看了很久，说：'他们的水没了。'"
+        }
+      ]
+    },
+    {
+      "id": "exp_ruins_inscription",
+      "category": "explore",
+      "title": "墙上的字",
+      "weight": 40,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.met_traveler"
+        },
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "废墟里有一段墙面还算完整，上面有刻痕。你认不出是什么，但那个姓卢的旅人蹲下去看了很久，手指沿着刻痕走了一遍。",
+      "prompt_hint": "旅人会读出内容的一部分，但不会全说。他会先问你一个问题。",
+      "choices": [
+        {
+          "text": "问他上面写了什么",
+          "hint": "追问",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.read_inscription",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 2
+            }
+          ],
+          "outcome": "他说这是记账的字，某某年某月，某队人从这里过，带了多少水。他说完站起来，说：'这一队人没回来。'"
+        },
+        {
+          "text": "不问，先把墙面拓下来",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.has_inscription_rubbing",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": 5
+            }
+          ],
+          "outcome": "你用了半张纸和一点炭。他看着你做这件事，什么也没说，但那天晚上他主动跟你说了两句话。"
+        },
+        {
+          "text": "让他把内容全写下来",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": -5
+            },
+            {
+              "op": "set",
+              "path": "flags.traveler_guarded",
+              "value": true
+            }
+          ],
+          "outcome": "他写了一半，停下来说剩下的认不全。你确定他在说谎，但你没有证据。"
+        }
+      ]
+    },
+    {
+      "id": "exp_oasis_hidden",
+      "category": "explore",
+      "title": "沙丘后面有绿色",
+      "weight": 35,
+      "repeatable": true,
+      "cooldown_days": 40,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "翻过最后一道沙梁，下面竟然有一小片水塘，周围长着草和几棵矮树。塘边没有人活动的痕迹。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "在这里建一个前哨点",
+          "hint": "扩张",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.has_outpost",
+              "value": true
+            }
+          ],
+          "outcome": "搭了个棚子，留了两个人。从这以后，往西的商队有了落脚的地方。"
+        },
+        {
+          "text": "取水就走，别声张",
+          "hint": "保守",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 30
+            },
+            {
+              "op": "set",
+              "path": "flags.secret_oasis",
+              "value": true
+            }
+          ],
+          "outcome": "灌满水就离开了。叶尔兰问为什么不留人，你说人不够。他没再问。"
+        },
+        {
+          "text": "在这里挖坎儿井看看水脉",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.surveyed_oasis",
+              "value": true
+            }
+          ],
+          "outcome": "挖了两丈，土是湿的。这意味着这条水脉和驿站那头可能是同一条。这个发现比水本身更值钱。"
+        }
+      ]
+    },
+    {
+      "id": "exp_night_camp_fire",
+      "category": "explore",
+      "title": "夜里火堆边的话",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 12,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "火堆烧到只剩红炭。有人开始说话。说的是些平时不会说的东西。",
+      "prompt_hint": "这是纯角色塑造事件，应由 AI 让随行角色说出一段关于自己的真实内容。数值变化要小。",
+      "choices": [
+        {
+          "text": "听，不打断",
+          "hint": "倾听",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": 3
+            }
+          ],
+          "outcome": "叶尔兰讲了他丢羊那件事。讲完他自己愣住了，像是没想到会说出来。然后他往火里丢了一块柴，说睡吧。"
+        },
+        {
+          "text": "也讲讲自己",
+          "hint": "交心",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 3
+            },
+            {
+              "memory": {
+                "character": "hasake_qishou",
+                "text": "玩家在火堆边讲了自己的事"
+              }
+            }
+          ],
+          "outcome": "你说了你为什么来这座驿站。没人接话，但第二天早上，老坎匠给你留了一碗热水。"
+        },
+        {
+          "text": "问他们怎么看这座驿站",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "叶尔兰说：'墙太矮。' 老坎匠说：'水太少。' 两个人都没说错。"
+        }
+      ]
+    },
+    {
+      "id": "exp_dead_camel",
+      "category": "explore",
+      "title": "一头倒下的骆驼",
+      "weight": 40,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一头骆驼侧躺在沙里，刚死不久，身上没有伤。鞍子还在。不远处有人的脚印，往东去了，走得很急。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "取走鞍具和货物",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            }
+          ],
+          "outcome": "鞍子是好鞍子。叶尔兰把骆驼的眼睛合上了，才让动手。"
+        },
+        {
+          "text": "顺着脚印找人",
+          "hint": "救人",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.found_stranded_merchant",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "population",
+              "value": 1
+            }
+          ],
+          "outcome": "走了半天，在一处岩石背面找到了人，快不行了。灌了水才睁眼。他是走单帮的小贩，从此留在了驿站。"
+        },
+        {
+          "text": "不动，绕开走",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.passed_dead_camel",
+              "value": true
+            }
+          ],
+          "outcome": "绕开了。你说不清为什么，但回头看了好几次。"
+        }
+      ]
+    },
+    {
+      "id": "exp_bandit_camp_spotted",
+      "category": "explore",
+      "title": "马匪的营地",
+      "weight": 40,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        },
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 25
+        }
+      ],
+      "text": "在一处背风的石壁下，有二十来个人和十几匹马。他们在吃饭，没设岗哨。你们趴在高处，风是往他们那边吹的。",
+      "prompt_hint": "若玩家选择观察，应让 AI 细腻描述头目黑风的一个细节动作，暗示他的性格。",
+      "choices": [
+        {
+          "text": "悄悄退回，回驿站备战",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 10
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_bandit_camp",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            }
+          ],
+          "outcome": "你们退了。回去以后你把烽燧的火堆位置重新排了一遍。三天后他们来了，看见墙上的火把，绕走了。"
+        },
+        {
+          "text": "记下人数和马的状况",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "set",
+              "path": "flags.knows_bandit_strength",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "二十三个人，十三匹马，其中五匹是驮马。你注意到他们煮的锅里没什么肉。这个细节你记住了。"
+        },
+        {
+          "text": "袭击他们的马群",
+          "hint": "冒险",
+          "effects": [
+            {
+              "op": "add",
+              "path": "population",
+              "value": 0
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -8
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": -15
+            },
+            {
+              "op": "set",
+              "path": "flags.provoked_bandits",
+              "value": true
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": -5
+            }
+          ],
+          "outcome": "你们赶走了三匹马。当天夜里，驿站外围的柴堆被点了。没人受伤，但所有人都明白这是回礼。"
+        }
+      ]
+    },
+    {
+      "id": "exp_dried_lake",
+      "category": "explore",
+      "title": "干掉的湖",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一片平坦的白色洼地，边界是一条明显的岸线。这里以前是个湖。湖底有船的木架子，散着。",
+      "prompt_hint": "老坎匠若同行会说这是「水走了」。他对这种事有敬畏也有经验。",
+      "choices": [
+        {
+          "text": "研究湖底的水道痕迹",
+          "hint": "长远",
+          "effects": [
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.studied_dried_lake",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 4
+            }
+          ],
+          "outcome": "你能看出水是从西北方向来的，走了一条很宽的旧道。老坎匠看了半天，说：'这条路能借。'"
+        },
+        {
+          "text": "收走船木",
+          "hint": "获取",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 14
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": 0
+            }
+          ],
+          "outcome": "木头干透了，轻，但结实。"
+        },
+        {
+          "text": "把这里当作牧场",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.food.meat",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.food.milk",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.has_pasture",
+              "value": true
+            }
+          ],
+          "outcome": "湖底长出了一层碱草，牲口爱吃。部落的人听说了，主动来问能不能共用这片地。"
+        }
+      ]
+    },
+    {
+      "id": "exp_lost_artifact",
+      "category": "explore",
+      "title": "土里有个铜件",
+      "weight": 35,
+      "repeatable": true,
+      "cooldown_days": 35,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "一个扁扁的铜件，巴掌大，上面有花纹，缺了一个角。看着不像工具，也不像钱。",
+      "prompt_hint": "神秘旅人会认得这东西，但他不会直说它是什么，只会说出它的年代与用途的一个侧面。",
+      "choices": [
+        {
+          "text": "带回驿站，找人看看",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.has_bronze_object",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "那个姓卢的旅人把铜件翻来覆去看了一盏茶的工夫，最后说：'不是本地的铜。' 他把东西还给你，没再多说。"
+        },
+        {
+          "text": "卖了换钱",
+          "hint": "逐利",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -2
+            }
+          ],
+          "outcome": "商队掌柜给了十五两，付钱很快，没还价。你后来想想，他付得太快了。"
+        },
+        {
+          "text": "就地埋回去",
+          "hint": "敬畏",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            }
+          ],
+          "outcome": "你把它放回坑里，填了土。叶尔兰看着你做完，说：'这样好。'"
+        }
+      ]
+    },
+    {
+      "id": "exp_first_return",
+      "category": "explore",
+      "title": "第一次带回东西",
+      "weight": 80,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        },
+        {
+          "op": "gte",
+          "path": "day",
+          "value": 5
+        }
+      ],
+      "text": "队伍回来了。驼背上绑着木料、几袋盐，还有一头不知从哪跟回来的小羊。门口围了一圈人，厨娘最先冲出来，先看的不是货。",
+      "prompt_hint": "厨娘会先看人，再看货。这是她的性格，也是本条事件的情感重点。",
+      "choices": [
+        {
+          "text": "把东西都入公库",
+          "hint": "公允",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.earth",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            }
+          ],
+          "outcome": "厨娘说这才叫过日子。老坎匠挑了根直的木料走了，没问过你。"
+        },
+        {
+          "text": "按出力分配，多劳多得",
+          "hint": "激励",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -2
+            }
+          ],
+          "outcome": "叶尔兰多拿了一份，他没推辞。但有两个没去的人脸色不好看。厨娘什么也没说，只是把分给你的那份又切了一半给小羊。"
+        },
+        {
+          "text": "留一部分给小羊和厨娘",
+          "hint": "人情",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "resources.food.milk",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 8
+            }
+          ],
+          "outcome": "厨娘抱着小羊转了一圈，说它有名字了。她给它取名'回来'。"
+        }
+      ]
+    },
+    {
+      "id": "exp_lost_water",
+      "category": "explore",
+      "title": "水囊漏了",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 18,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.party_out"
+        }
+      ],
+      "text": "早上清点，两个水囊只剩一半。皮子在外侧裂了细缝，看不出来，摸才摸得到。离最近的已知水源还有一天路。",
+      "prompt_hint": "叶尔兰会主动说自己那份少喝。他不会说漂亮话，只会把水囊往你面前一推。",
+      "choices": [
+        {
+          "text": "全队减半，一起扛",
+          "hint": "公平",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 5
+            }
+          ],
+          "outcome": "没人抱怨。到水源的时候所有人都渴得说不出话，但都到了。"
+        },
+        {
+          "text": "把水分给驮畜，人少喝",
+          "hint": "押注",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -4
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 2
+            }
+          ],
+          "outcome": "货保住了，人走着回去。叶尔兰牵马走在最后，一句话没说。"
+        },
+        {
+          "text": "就地补囊，用皮子和筋线",
+          "hint": "手艺",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.repaired_waterskin",
+              "value": true
+            }
+          ],
+          "outcome": "补了半个时辰，补住了。叶尔兰说这手艺是他阿妈教的，说完就转头去看马了。"
+        }
+      ]
+    },
+    {
+      "id": "dip_caravan_haggle",
+      "category": "diplomacy",
+      "title": "掌柜的开价",
+      "weight": 90,
+      "repeatable": true,
+      "cooldown_days": 10,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.met_traveler"
+        }
+      ],
+      "text": "陈守业把算盘放在桌上，说他要三十匹布，出价每匹三两。他知道你的布好，也知道你缺钱。他的手指一直按在算珠上没动。",
+      "prompt_hint": "这是博弈系统的标准演练。AI 需让陈守业虚张声势（提别家的价），并在玩家坚持时逐步让步，但保留底线。",
+      "choices": [
+        {
+          "text": "接受三两",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 24
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 3
+            }
+          ],
+          "outcome": "他付钱很快，收布更快。走的时候说：'下回还这个价。' 你听懂了——他在定规矩。"
+        },
+        {
+          "text": "坚持四两",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "他沉默了一会儿，然后说：'四两，成交。' 收起算盘的时候他笑了一下，说：'你会做生意。'"
+        },
+        {
+          "text": "问他别家给什么价",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_market_price",
+              "value": true
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 27
+            }
+          ],
+          "outcome": "他说东边有个驿站出二两八。你看了看他的眼睛，他没躲。这价格可能是真的，也可能是压价的托词——但你没法验证。"
+        },
+        {
+          "text": "只卖十匹，剩下的留着",
+          "hint": "保守",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": -3
+            }
+          ],
+          "outcome": "他有点不高兴，但还是买了。他说：'东西留着不卖，就是不值钱。'"
+        }
+      ]
+    },
+    {
+      "id": "dip_bandits_toll",
+      "category": "diplomacy",
+      "title": "路上有人等你",
+      "weight": 75,
+      "repeatable": true,
+      "cooldown_days": 20,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.knows_bandit_camp"
+        },
+        {
+          "op": "lte",
+          "path": "stats.security",
+          "value": 60
+        }
+      ],
+      "text": "十几匹马一字排开，堵在路中间。领头的那个人没有拔刀，只是把手搭在刀柄上，看着你的商队。他说：'交二十两，你们走过去。'",
+      "prompt_hint": "黑风的语气要平静。他会给一次机会，但不会给第二次。他的手下缺粮，这是他的隐秘动机。",
+      "choices": [
+        {
+          "text": "交钱买路",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -2
+            }
+          ],
+          "outcome": "他收了钱，让人让开路。走过的时候他说了一句：'你是个明白人。' 马队走后，你发现他们谁都没笑。"
+        },
+        {
+          "text": "拒绝，准备打",
+          "hint": "强硬",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": -10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.battle_imminent",
+              "value": true
+            }
+          ],
+          "outcome": "他看了你很久，然后笑了。他说：'那就别怪我了。' 但这一天他没有动手——他退回去了。他在等你先出牌。"
+        },
+        {
+          "text": "还价，给粮不给钱",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 25
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 12
+            },
+            {
+              "op": "set",
+              "path": "flags.suspect_bandit_food_shortage",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "memory": {
+                "character": "mafei_toumu",
+                "text": "玩家用粮食而非银子买路，他答应了，这件事让他记了很久"
+              }
+            }
+          ],
+          "outcome": "他的眼神变了一下——非常短暂，但你看见了。他说：'粮也行。' 你们过了。走远之后叶尔兰说：'他们要的不是钱。'"
+        },
+        {
+          "text": "问他手下还够吃几天",
+          "hint": "直击",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 5
+            },
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_bandit_food_shortage",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            },
+            {
+              "memory": {
+                "character": "mafei_toumu",
+                "text": "玩家直接问他手下的粮还够几天，他没有回答，但收了钱就走了"
+              }
+            }
+          ],
+          "outcome": "他没有回答。但他的手从刀柄上放下来了。他收了一半的钱，让开了路。这是他第一次让步。"
+        }
+      ]
+    },
+    {
+      "id": "dip_tribe_alliance",
+      "category": "diplomacy",
+      "title": "部落的人来了",
+      "weight": 70,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "characters.hasake_qishou.affinity",
+          "value": 30
+        }
+      ],
+      "text": "三个骑马的人来了，为首的是叶尔兰的叔叔。他们不进屋，就在院子里站着。叶尔兰站在他们那边，脸色不太自然。",
+      "prompt_hint": "叶尔兰会感到为难但他不会明说。部落的诉求要合理，不能写成贪婪。",
+      "choices": [
+        {
+          "text": "答应共用草场",
+          "hint": "结盟",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 12
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "population",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.tribe_alliance",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "resources.food.milk",
+              "value": 8
+            },
+            {
+              "memory": {
+                "character": "hasake_qishou",
+                "text": "玩家答应与部落共用草场，这件事让他在部落里抬起了头"
+              }
+            }
+          ],
+          "outcome": "协议是在院子里口头定的，没有纸。他们留了两峰骆驼和三个毡房的人。叶尔兰那天晚上话很多，一直在笑。"
+        },
+        {
+          "text": "只答应过路，不给草场",
+          "hint": "保留",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -5
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 8
+            }
+          ],
+          "outcome": "他们喝了茶就走了。叶尔兰送到门口就回来了，没送到路口——以前他都送的。"
+        },
+        {
+          "text": "谈条件：草场换护卫",
+          "hint": "交换",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.tribe_guards",
+              "value": true
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 15
+            }
+          ],
+          "outcome": "他叔叔想了一会儿，点头了。从此每个月有四个骑手轮流来驿站值守。叶尔兰说这比给地划算——但他还是有点失望。"
+        }
+      ]
+    },
+    {
+      "id": "dip_tax_collector",
+      "category": "diplomacy",
+      "title": "来收税的人",
+      "weight": 80,
+      "repeatable": true,
+      "cooldown_days": 45,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 50
+        },
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        }
+      ],
+      "text": "两个人骑着马，衣服整齐，带着一卷纸。他们说奉上头的令来收今年的税，三十两，或者等价物。纸上盖着印。",
+      "prompt_hint": "这两人本身不是坏人，只是办事的。他们的态度会随玩家的反应变化。不要写成脸谱化的恶吏。",
+      "choices": [
+        {
+          "text": "足额缴纳",
+          "hint": "顺从",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.tax_paid",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 5
+            }
+          ],
+          "outcome": "他们收了钱，盖了回执，走的时候说以后有事可以找他们。这话听着客气，但你知道这意味着什么。"
+        },
+        {
+          "text": "讨价还价，只交二十两",
+          "hint": "周旋",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.tax_discounted",
+              "value": true
+            }
+          ],
+          "outcome": "他们商量了一下，说今年可以按二十两，但明年要补。你答应了。他们都记着。"
+        },
+        {
+          "text": "用物产抵税",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.cloth",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            }
+          ],
+          "outcome": "他们不太乐意，但还是收下了。走的时候有一匹马的驮袋明显轻了。"
+        },
+        {
+          "text": "拒缴",
+          "hint": "对抗",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 8
+            },
+            {
+              "op": "sub",
+              "path": "stats.security",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.tax_refused",
+              "value": true
+            }
+          ],
+          "outcome": "他们没吵，只是把纸卷起来，说会如实上报。院子里的人都在看着你。有人低声叫了一声好。"
+        }
+      ]
+    },
+    {
+      "id": "dip_local_lord_demand",
+      "category": "diplomacy",
+      "title": "要人",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 40,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 40
+        },
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 20
+        }
+      ],
+      "text": "使者带来话：地方上要修一段路，要从驿站借十个人，两个月。给的钱不多，但话里带着别的意思。",
+      "prompt_hint": "使者本人态度客气但不容拒绝，他会反复强调这是个机会。",
+      "choices": [
+        {
+          "text": "答应，借十个人",
+          "hint": "顺从",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "population",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -8
+            },
+            {
+              "op": "set",
+              "path": "flags.lent_workers",
+              "value": true
+            }
+          ],
+          "outcome": "十个人走了。两个月的活变成了三个月。回来的时候少了两个，他们说自己留下了。"
+        },
+        {
+          "text": "只借三个人",
+          "hint": "周旋",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "population",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "使者不太满意，但接受了。三个人回来以后说那边管饭管得差。"
+        },
+        {
+          "text": "用粮食代替人力",
+          "hint": "交换",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            }
+          ],
+          "outcome": "使者收下了粮，说这样也行。厨娘听说不用走人，松了口气。"
+        },
+        {
+          "text": "拒绝，明年再说",
+          "hint": "对抗",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.refused_labor_demand",
+              "value": true
+            }
+          ],
+          "outcome": "使者微笑着走了。第二天，上游的水少了一点。你没法证明这是报复。"
+        }
+      ]
+    },
+    {
+      "id": "dip_rival_station_offer",
+      "category": "diplomacy",
+      "title": "邻驿来信",
+      "weight": 55,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 90
+        }
+      ],
+      "text": "东边那个驿站的驿丞派人送信来，说想一起修一段古道，费用各半，走的人两家分。信写得很客气，落款用了三个印。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "合作修路",
+          "hint": "合作",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 20
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.road_built",
+              "value": true
+            }
+          ],
+          "outcome": "路修好了。走的人确实多了，两家都分到。但半年后你听说他把路口的一个水井圈进了自己的地界。"
+        },
+        {
+          "text": "婉拒，自己修",
+          "hint": "独立",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 0
+            }
+          ],
+          "outcome": "你自己修了一段。慢，但是你的。"
+        },
+        {
+          "text": "回信试探他的真实意图",
+          "hint": "试探",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.suspect_rival_intent",
+              "value": true
+            }
+          ],
+          "outcome": "他回信更快了，也更客气了。你从措辞里看出他急——可能他自己那边出了问题。"
+        }
+      ]
+    },
+    {
+      "id": "dip_winter_camp_request",
+      "category": "diplomacy",
+      "title": "想借个地方过冬",
+      "weight": 65,
+      "repeatable": true,
+      "cooldown_days": 60,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        },
+        {
+          "op": "gte",
+          "path": "characters.hasake_qishou.affinity",
+          "value": 20
+        }
+      ],
+      "text": "叶尔兰说，部落今年冬天的营地水不够，想问能不能在驿站西边那片洼地过冬。他说得很随意，但一直在看你的脸。",
+      "prompt_hint": "叶尔兰会用很轻松的语气说这件事，但这是他最在意的请求。他不会求。",
+      "choices": [
+        {
+          "text": "答应，划一块地",
+          "hint": "结盟",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "population",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.winter_guests",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "resources.food.milk",
+              "value": 10
+            },
+            {
+              "memory": {
+                "character": "hasake_qishou",
+                "text": "玩家答应部落来驿站西边过冬，这是他求过的最重要的一件事"
+              }
+            }
+          ],
+          "outcome": "叶尔兰说了声'好'就走了，走得很快。第二天他一个人把西边那片洼地平了出来，什么都没让你派人。"
+        },
+        {
+          "text": "答应，但要他们出人守夜",
+          "hint": "交换",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 25
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 12
+            },
+            {
+              "op": "set",
+              "path": "flags.winter_guests",
+              "value": true
+            }
+          ],
+          "outcome": "他一口答应。那个冬天驿站没丢过一只羊。"
+        },
+        {
+          "text": "水不够，不行",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -12
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            },
+            {
+              "op": "set",
+              "path": "flags.refused_winter_camp",
+              "value": true
+            }
+          ],
+          "outcome": "他说'知道了'，然后去马厩待了一下午。晚上他没来吃饭。"
+        }
+      ]
+    },
+    {
+      "id": "dip_scholar_arrives",
+      "category": "diplomacy",
+      "title": "过路的读书人",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 35,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 35
+        }
+      ],
+      "text": "一个背着书箱的读书人来了，说要住几天，愿意用抄书抵房钱。他带的书里有讲水利的。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "留下，让他抄书换宿",
+          "hint": "投资",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "karez.flow_bonus",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            }
+          ],
+          "outcome": "他抄了三天，抄出一段讲如何看土层找水脉的话。老坎匠看了那页纸，说：'这话对。' 这是他第一次夸书。"
+        },
+        {
+          "text": "买下他那本水利书",
+          "hint": "获取",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.has_water_book",
+              "value": true
+            }
+          ],
+          "outcome": "书留下了。字很多，看得慢，但确实有用。"
+        },
+        {
+          "text": "问他关于坎儿井的事",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 4
+            }
+          ],
+          "outcome": "他说书上没写这个，写坎儿井的人少。老坎匠听说了，哼了一声：'当然少，谁耐烦写字。'"
+        }
+      ]
+    },
+    {
+      "id": "dip_threat_rumor",
+      "category": "diplomacy",
+      "title": "有人放话",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 30
+        }
+      ],
+      "text": "一个过路的商人说，他在三十里外听人提到你们驿站的名字，说'那家好欺负'。他说这话时一直在看你的反应。",
+      "prompt_hint": "商人可能在夸大，也可能在卖消息。这本身是该事件的关键歧义。",
+      "choices": [
+        {
+          "text": "加强戒备，增派守卫",
+          "hint": "稳妥",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            }
+          ],
+          "outcome": "加了两班夜哨。半个月里什么也没发生，但没人抱怨，因为大家晚上都睡得更踏实了。"
+        },
+        {
+          "text": "给商人钱，问他更多细节",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_threat_source",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 5
+            }
+          ],
+          "outcome": "他说是驿站东边二十里的一伙人，四五个人，不是马匪。听起来更像探路的。"
+        },
+        {
+          "text": "请他喝酒，套话",
+          "hint": "社交",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.fruit",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 3
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_threat_source",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 1
+            }
+          ],
+          "outcome": "酒过三巡，他说的话前后对不上了。他可能只是想骗一顿饭。但你也听到了一个真实的地名。"
+        },
+        {
+          "text": "不信，不过问",
+          "hint": "轻忽",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -6
+            },
+            {
+              "op": "set",
+              "path": "flags.ignored_threat",
+              "value": true
+            }
+          ],
+          "outcome": "他走了。七天后，仓库的锁被人撬了，丢了两袋粮。"
+        }
+      ]
+    },
+    {
+      "id": "dip_tribe_livestock",
+      "category": "diplomacy",
+      "title": "部落要卖牲口",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "characters.hasake_qishou.affinity",
+          "value": 25
+        }
+      ],
+      "text": "叶尔兰说部落今年草场好，愿意匀一些羊和马出来。价格比商队便宜，但要现钱，而且他要你先开口。",
+      "prompt_hint": "叶尔兰希望玩家主动提这件事，因为这是他在部落里的面子问题。",
+      "choices": [
+        {
+          "text": "买，要五只羊",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "resources.food.meat",
+              "value": 12
+            },
+            {
+              "op": "add",
+              "path": "resources.food.milk",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            }
+          ],
+          "outcome": "羊赶来了。叶尔兰亲自挑的，挑的都是好羊。厨娘当天就杀了一只。"
+        },
+        {
+          "text": "问他能不能再便宜点",
+          "hint": "压价",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "resources.food.meat",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 2
+            }
+          ],
+          "outcome": "他同意了，但脸色有点僵。他说这是部落给驿站的价，不是给他的价。"
+        },
+        {
+          "text": "不要，我们缺的是粮",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -3
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -1
+            }
+          ],
+          "outcome": "他点点头说'也是'。但你注意到他那天没提这件事第二次。"
+        }
+      ]
+    },
+    {
+      "id": "dip_mediator_needed",
+      "category": "diplomacy",
+      "title": "两家打起来了",
+      "weight": 45,
+      "repeatable": true,
+      "cooldown_days": 40,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.reputation",
+          "value": 45
+        }
+      ],
+      "text": "部落的人和驿站的两个农户为了一片草地的边界吵起来了，差点动手。两边都来找你评理。",
+      "prompt_hint": "厨娘会想插话调解，热合曼江也会。他们两人都试图把气氛压下来。",
+      "choices": [
+        {
+          "text": "出面调停，划清界限",
+          "hint": "公允",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.boundary_set",
+              "value": true
+            }
+          ],
+          "outcome": "你领着两边走了一遍地界，在几处地方堆了石头。库尔班阿叔和你握了手，那两个农户也点了头。厨娘在远处看着，笑了。"
+        },
+        {
+          "text": "偏袒驿站这边",
+          "hint": "立场",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": -10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -4
+            },
+            {
+              "op": "set",
+              "path": "flags.favored_own_people",
+              "value": true
+            }
+          ],
+          "outcome": "部落的人当天就走了。叶尔兰去送，回来以后一句话没说，进了马厩。"
+        },
+        {
+          "text": "让他们自己谈",
+          "hint": "回避",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -5
+            },
+            {
+              "op": "set",
+              "path": "flags.left_dispute",
+              "value": true
+            }
+          ],
+          "outcome": "他们谈了两天，没谈成。最后那片草地谁也没用，荒着。"
+        }
+      ]
+    },
+    {
+      "id": "dip_gift_from_rival",
+      "category": "diplomacy",
+      "title": "邻驿送了礼",
+      "weight": 40,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.road_built"
+        },
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 150
+        }
+      ],
+      "text": "邻驿送来两匹好布和一只铜壶，说是谢你上次一起修路。礼不轻，铜壶的做工比驿站里任何一件都细。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "收下，回赠一批粮",
+          "hint": "礼尚往来",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 4
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 4
+            }
+          ],
+          "outcome": "回赠的粮比礼物值钱。使者走的时候多看了仓库方向两眼。"
+        },
+        {
+          "text": "收下，不回礼",
+          "hint": "占便宜",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.cloth",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "resources.materials.tools",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -3
+            }
+          ],
+          "outcome": "东西留下了。陈守业后来听说了这件事，说了一句：'收礼不回，是要记账的。'"
+        },
+        {
+          "text": "退回去，说无功不受禄",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            },
+            {
+              "op": "set",
+              "path": "flags.refused_gift",
+              "value": true
+            }
+          ],
+          "outcome": "使者有点意外，把东西带回去了。你的做法传了出去，有人觉得你傻，也有人觉得你稳。"
+        }
+      ]
+    },
+    {
+      "id": "cri_sandstorm_hits",
+      "category": "crisis",
+      "title": "沙暴来了",
+      "weight": 80,
+      "repeatable": true,
+      "cooldown_days": 25,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "day",
+          "value": 10
+        }
+      ],
+      "text": "风在半个时辰里从无到有。天变成了土黄色，太阳成了一个模糊的白点。沙子打得人睁不开眼。有人喊：明渠！",
+      "prompt_hint": "这是行动事件，描写要快、短、具体。不要抒情。",
+      "choices": [
+        {
+          "text": "全员去保明渠",
+          "hint": "保命线",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -5
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.saved_channel",
+              "value": true
+            }
+          ],
+          "outcome": "四十多个人在风里趴着，用手把沙从渠里往外扒。风停了以后，渠是通的。所有人都成了土人。"
+        },
+        {
+          "text": "先保房屋和库房",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -2
+            },
+            {
+              "op": "sub",
+              "path": "karez.flow_bonus",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.channel_silted",
+              "value": true
+            }
+          ],
+          "outcome": "屋顶保住了。但明渠被埋了三段，清了两天才通。这两天全驿站都没睡好。"
+        },
+        {
+          "text": "让所有人进屋里躲",
+          "hint": "人命优先",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 6
+            },
+            {
+              "op": "sub",
+              "path": "karez.flow_bonus",
+              "value": 10
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.channel_buried",
+              "value": true
+            }
+          ],
+          "outcome": "没有一个人受伤。厨娘在灶房里烧了一大锅热汤。但风停后看着被埋的渠，老坎匠一句话没说，自己扛着坎土曼去了。"
+        }
+      ]
+    },
+    {
+      "id": "cri_cold_snap",
+      "category": "crisis",
+      "title": "寒潮提前了",
+      "weight": 70,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "is",
+          "path": "season",
+          "value": "autumn"
+        }
+      ],
+      "text": "半夜气温骤降。早上涝坝结了厚冰，水面下的水取不出来。有三个人手脚冻伤。柴火只够三天。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "拆一部分建筑木料当柴",
+          "hint": "应急",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "sub",
+              "path": "stats.prosperity",
+              "value": 4
+            },
+            {
+              "op": "set",
+              "path": "flags.burned_building_wood",
+              "value": true
+            }
+          ],
+          "outcome": "马厩的备用梁拆了。木料烧起来很旺，但马厩的顶从此漏风。"
+        },
+        {
+          "text": "破冰取水，优先保人",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.tools",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "resources.water.current",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 5
+            }
+          ],
+          "outcome": "用镢头在冰上凿了两个洞，一整天守着不让它再冻上。厨娘煮了姜汤，一人一碗，连骆驼都喂了点热的。"
+        },
+        {
+          "text": "派人去部落求援",
+          "hint": "外交",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.materials.wood",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.hasake_qishou.affinity",
+              "value": 6
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": -2
+            },
+            {
+              "op": "set",
+              "path": "flags.tribe_helped_winter",
+              "value": true
+            }
+          ],
+          "outcome": "叶尔兰跑了一趟，部落送来两驮柴和几件皮衣。他说他叔叔问了一句'他们行不行'，他说行。"
+        }
+      ]
+    },
+    {
+      "id": "cri_illness",
+      "category": "crisis",
+      "title": "有人开始发烧",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 40,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "population",
+          "value": 15
+        }
+      ],
+      "text": "先是两个孩子，然后是两个大人。都是高热、咳嗽、身上起红点。厨娘把病人隔到了西边的小屋，自己守在门口。",
+      "prompt_hint": "严禁涉及任何具体疾病名称、治疗手段或宗教仪式。只写隔离、照料、用水、熬煮这些具体行为。",
+      "choices": [
+        {
+          "text": "隔离，全力照料",
+          "hint": "负责",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 25
+            },
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -5
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": 10
+            },
+            {
+              "op": "set",
+              "path": "flags.illness_contained",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "chuniang",
+                "text": "驿站有人病了，玩家决定全力隔离照料，她守着病人没合眼"
+              }
+            }
+          ],
+          "outcome": "六天后没人再发烧。厨娘瘦了一圈，但她把最后一个病人的粥端进去的时候还在数落他不肯吃东西。"
+        },
+        {
+          "text": "把病人送到外面去",
+          "hint": "止损",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -15
+            },
+            {
+              "op": "add",
+              "path": "characters.chuniang.affinity",
+              "value": -15
+            },
+            {
+              "op": "set",
+              "path": "flags.exiled_sick",
+              "value": true
+            },
+            {
+              "op": "sub",
+              "path": "population",
+              "value": 2,
+              "deferred": true
+            }
+          ],
+          "outcome": "四个人被送到三里外的破屋里。厨娘每天偷偷去送饭。她没有当面反对你，但她三天没跟你说话。"
+        },
+        {
+          "text": "找那个旅人问问",
+          "hint": "求助",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "characters.shenmi_lvren.affinity",
+              "value": 8
+            },
+            {
+              "op": "set",
+              "path": "flags.traveler_helped_sick",
+              "value": true
+            }
+          ],
+          "outcome": "他去看了一眼，说要用滚水煮过的布擦身，屋里要透风但不能对风。他说话很短，说完就回自己屋了。三天后退烧的。"
+        }
+      ]
+    },
+    {
+      "id": "cri_shaft_collapse",
+      "category": "crisis",
+      "title": "井塌了",
+      "weight": 60,
+      "repeatable": true,
+      "cooldown_days": 45,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.sections",
+          "value": 3
+        },
+        {
+          "op": "not_has",
+          "path": "flags.third_shaft_reinforced"
+        }
+      ],
+      "text": "一声闷响，地都震了一下。跑过去的时候，第三段竖井口已经看不出来了，只有一片新翻的土。有人还在下面。",
+      "prompt_hint": "这是最紧张的一条。老坎匠的反应是核心——他会立刻下井，不管他的腿。",
+      "choices": [
+        {
+          "text": "立刻救人，不管井",
+          "hint": "人命优先",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": 15
+            },
+            {
+              "op": "set",
+              "path": "flags.rescued_from_collapse",
+              "value": true
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "memory": {
+                "character": "lao_kanjiang",
+                "text": "塌方时玩家第一件事是救人，老坎匠的腿在那天又伤了一次"
+              }
+            }
+          ],
+          "outcome": "挖了两个时辰，把人拖出来了，活着。老坎匠自己下的井，上来的时候左腿在抖，他没让人扶。那天夜里他一个人坐在井口，坐到天亮。"
+        },
+        {
+          "text": "先加固旁边，防止二次塌方",
+          "hint": "谨慎",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 25
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": -10
+            },
+            {
+              "op": "add",
+              "path": "characters.lao_kanjiang.affinity",
+              "value": -8
+            },
+            {
+              "op": "sub",
+              "path": "population",
+              "value": 1
+            },
+            {
+              "op": "set",
+              "path": "flags.lost_worker_in_collapse",
+              "value": true
+            }
+          ],
+          "outcome": "二次塌方确实没发生。但下面那个人没救回来。老坎匠没骂你，他只是把坎土曼插在土里，走了。"
+        },
+        {
+          "text": "先保上面的人撤开，再想办法",
+          "hint": "止损",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 3
+            },
+            {
+              "op": "sub",
+              "path": "population",
+              "value": 1
+            },
+            {
+              "op": "sub",
+              "path": "karez.flow_bonus",
+              "value": 12
+            },
+            {
+              "op": "set",
+              "path": "flags.abandoned_shaft",
+              "value": true
+            }
+          ],
+          "outcome": "没再死人。那段井废了，水流少了一截。你后来在井口立了块木牌，但不知道写什么好。"
+        }
+      ]
+    },
+    {
+      "id": "cri_raid_night",
+      "category": "crisis",
+      "title": "火光从东边来",
+      "weight": 85,
+      "repeatable": true,
+      "cooldown_days": 30,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "lte",
+          "path": "stats.security",
+          "value": 55
+        },
+        {
+          "op": "gte",
+          "path": "day",
+          "value": 15
+        }
+      ],
+      "text": "烽燧上的人跑下来说，东边有火光，十几匹马。他们还有半个时辰到。",
+      "prompt_hint": "这是战斗入口事件。若选迎战，跳转到战斗系统并让 AI 指挥敌人。",
+      "choices": [
+        {
+          "text": "迎战，按预案布防",
+          "hint": "迎战",
+          "effects": [
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.battle_imminent",
+              "value": true
+            }
+          ],
+          "outcome": "围墙上一排火把点起来。叶尔兰骑着马在墙外来回跑了两趟，把地上的碎石踢开。"
+        },
+        {
+          "text": "先派人谈判，争取时间",
+          "hint": "外交",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.silver",
+              "value": 10
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 3
+            }
+          ],
+          "outcome": "使者带回话：他们要五十两或者等价的粮。至少现在是谈的。"
+        },
+        {
+          "text": "放弃外院，集中守内院",
+          "hint": "止损",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 12
+            },
+            {
+              "op": "sub",
+              "path": "stats.prosperity",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.raided_outer_yard",
+              "value": true
+            }
+          ],
+          "outcome": "外院的草料和两间空屋被烧了。人都没事，畜牲丢了三头。天亮以后厨娘在灰里扒出半只熏羊，说还能吃。"
+        }
+      ]
+    },
+    {
+      "id": "cri_reservoir_leak",
+      "category": "crisis",
+      "title": "涝坝在渗",
+      "weight": 50,
+      "repeatable": true,
+      "cooldown_days": 35,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "karez.reservoir_level",
+          "value": 1
+        }
+      ],
+      "text": "涝坝下坡那块地一直是湿的，但今天能看见水在往外渗。势头不快，但一天一夜能漏掉三成。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "立刻修补坝底",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 20
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 6
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 3
+            }
+          ],
+          "outcome": "把水放掉一半才敢下去修。三天修好，重新蓄满又花了五天。修好以后老坎匠沿着坝走了一圈，说这回能撑几年。"
+        },
+        {
+          "text": "先放一部分水降低压力",
+          "hint": "止损",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 60
+            },
+            {
+              "op": "add",
+              "path": "karez.reservoir_level",
+              "value": 0
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -3
+            }
+          ],
+          "outcome": "水放到田里去了，没浪费，但涝坝空了一半。那个冬天你一直担心不够用。"
+        },
+        {
+          "text": "不管，先观察两天",
+          "hint": "侥幸",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 90
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": -4
+            },
+            {
+              "op": "set",
+              "path": "flags.reservoir_weakened",
+              "value": true
+            }
+          ],
+          "outcome": "两天后缺口变大了。老坎匠看了看，只说了四个字：'早说过了。'"
+        }
+      ]
+    },
+    {
+      "id": "cri_bandits_ultimatum",
+      "category": "crisis",
+      "title": "他们给了期限",
+      "weight": 65,
+      "repeatable": false,
+      "cooldown_days": 0,
+      "max_per_game": 1,
+      "conditions": [
+        {
+          "op": "has",
+          "path": "flags.knows_bandit_food_shortage"
+        },
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 120
+        }
+      ],
+      "text": "一个人骑马到墙外，把一支箭射在门上。箭上缠着布，布上写着：'七天。五十石粮，或者我们自己来拿。' 字写得很正。",
+      "prompt_hint": "黑风当过驿卒，字写得正是个细节。玩家可以借此推测他的来历。",
+      "choices": [
+        {
+          "text": "备战，七天内加固防线",
+          "hint": "迎战",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.materials.earth",
+              "value": 25
+            },
+            {
+              "op": "sub",
+              "path": "resources.materials.wood",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 20
+            },
+            {
+              "op": "sub",
+              "path": "stats.morale",
+              "value": -5
+            },
+            {
+              "op": "set",
+              "path": "flags.prepared_for_siege",
+              "value": true
+            }
+          ],
+          "outcome": "七天里墙加高了两尺，门口挖了坑。第八天他们来了，在墙外转了三圈，走了。"
+        },
+        {
+          "text": "给粮，换平安",
+          "hint": "妥协",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.grain",
+              "value": 50
+            },
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.security",
+              "value": 5
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": -10
+            },
+            {
+              "op": "set",
+              "path": "flags.paid_bandits_grain",
+              "value": true
+            },
+            {
+              "memory": {
+                "character": "mafei_toumu",
+                "text": "玩家给的是粮不是钱，他确认了这个驿站真的有余粮"
+              }
+            }
+          ],
+          "outcome": "粮送出去了。第八天没人来。但你知道，明年他们还会来，而且要得更多。"
+        },
+        {
+          "text": "回一支箭，说他字写得像驿卒",
+          "hint": "直击",
+          "effects": [
+            {
+              "op": "add",
+              "path": "characters.mafei_toumu.affinity",
+              "value": 20
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.told_bandit_his_past",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 5
+            },
+            {
+              "memory": {
+                "character": "mafei_toumu",
+                "text": "玩家从字迹认出他是驿卒出身，并在回信里点破了"
+              }
+            }
+          ],
+          "outcome": "第三天他亲自来了，一个人，没带刀。他站在墙外看了很久，然后说：'你怎么知道的。' 你没答。他说：'把粮收好。' 就走了。那年冬天他没再来。"
+        }
+      ]
+    },
+    {
+      "id": "cri_road_cut",
+      "category": "crisis",
+      "title": "商路断了",
+      "weight": 55,
+      "repeatable": true,
+      "cooldown_days": 35,
+      "max_per_game": null,
+      "conditions": [
+        {
+          "op": "gte",
+          "path": "stats.prosperity",
+          "value": 70
+        },
+        {
+          "op": "gte",
+          "path": "day",
+          "value": 40
+        }
+      ],
+      "text": "连着二十天没有商队来。陈守业上次走的时候说过西边在打仗，但没说打多久。仓库里的东西开始积压。",
+      "prompt_hint": "",
+      "choices": [
+        {
+          "text": "自己组队出去打通商路",
+          "hint": "进取",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 15
+            },
+            {
+              "op": "sub",
+              "path": "resources.water.current",
+              "value": 30
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 6
+            },
+            {
+              "op": "set",
+              "path": "flags.opened_new_route",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.prosperity",
+              "value": 10
+            }
+          ],
+          "outcome": "叶尔兰带人往南绕了很远，找到一条更长的路，但通。回来的时候他瘦了一圈，第一句话是'路上没有水'。"
+        },
+        {
+          "text": "转型，把东西卖给本地",
+          "hint": "务实",
+          "effects": [
+            {
+              "op": "add",
+              "path": "resources.silver",
+              "value": 15
+            },
+            {
+              "op": "add",
+              "path": "stats.morale",
+              "value": 4
+            },
+            {
+              "op": "sub",
+              "path": "stats.prosperity",
+              "value": 6
+            }
+          ],
+          "outcome": "东西内部消化了。厨娘用积压的葡萄干做了不少东西，孩子们第一次吃够了甜的。但繁荣是停在那儿的。"
+        },
+        {
+          "text": "派人去找陈守业问情况",
+          "hint": "情报",
+          "effects": [
+            {
+              "op": "sub",
+              "path": "resources.food.naan",
+              "value": 8
+            },
+            {
+              "op": "add",
+              "path": "characters.hanshang_zhanggui.affinity",
+              "value": 5
+            },
+            {
+              "op": "set",
+              "path": "flags.knows_war_duration",
+              "value": true
+            },
+            {
+              "op": "add",
+              "path": "stats.reputation",
+              "value": 2
+            }
+          ],
+          "outcome": "人回来了，说陈守业正卡在中间过不来，但他托人带话：'再等两个月。' 他还托人带来一小包茶。"
+        }
+      ]
+    }
+  ],
+  "design_gaps": {
+    "note": "这些是刻意为后续版本留的空白，不是遗漏。",
+    "planned_v1_1": [
+      "木卡姆集会完整流程（3 阶段事件链，对应文化鼎盛胜利条件）",
+      "高昌/龟兹/楼兰三条古城探索链，各 5 条事件",
+      "神秘旅人主线（10 条，揭示坎儿井人为淤塞真相）",
+      "马匪头目转为盟友的分支链（6 条）",
+      "第一个冬天的完整事件集（约 12 条季节性事件）"
+    ],
+    "needs_testing": [
+      "mgt_water_rationing 的触发频率（cooldown 12 天是否太短）",
+      "cri_illness 中 exiled_sick 的 deferred 人口减少缺少实现，需补",
+      "dip_tax_collector 的税率是否随繁荣度动态调整（目前固定 30 两）"
+    ]
+  }
+}
