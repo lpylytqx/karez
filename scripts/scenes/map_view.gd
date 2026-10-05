@@ -269,11 +269,14 @@ func _place_props() -> void:
 	# 64x64 的建筑以中心对齐，所以中心点最下只能到 15（=240px，占 208..272）。
 	_add_prop("res://buildings/warehouse_01.png", 7, 15.5)    # 48x48 仓库
 	_add_prop("res://buildings/reservoir_01.png", 12, 15)     # 64x64 涝坝
-	_add_prop("res://buildings/campfire_01.png", 17, 15.5)    # 32x32 营火
+	# ⚠ 这里原本摆的是 campfire_01.png，但**两个素材包里根本没有营火图块** ——
+	# 那张实际是 tiny-town #22（一棵橙色的树/石堆），当初被我当成了火。
+	# 查清后不再找替代品：厨房（吊锅）本来就是明确的炊具，
+	# 直接把它挪到村中心这个位置当灶，比虚构一个营火更实在。
+	_add_prop("res://buildings/kitchen_01.png", 17, 15.5)     # 32x32 灶（吊锅）
 	_add_prop("res://buildings/bazar_stall_red.png", 19, 15.5)
 	_add_prop("res://buildings/bazar_stall_blue.png", 21, 15.5)
 	_add_prop("res://buildings/inn_01.png", 26, 15)           # 64x64 驿馆
-	_add_prop("res://buildings/kitchen_01.png", 4, 13.5)
 	_add_prop("res://buildings/grape_drying_01.png", 30, 12)  # 48x64 晾房
 
 	# ── 随绿洲等级逐步出现的建筑：绿洲越大，聚落越像样 ──
