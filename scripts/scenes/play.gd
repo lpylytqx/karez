@@ -114,8 +114,13 @@ func _ready() -> void:
 	# 右侧功能栏默认隐藏，地图整片留给玩家。但首次启动要把分工页拉出来 ——
 	# 用户实机反馈「不知道该怎么派人」，说明光有按钮不够。
 	# 教程在底栏，所以底栏也先开着；玩家随时可以用「对话」按钮收起。
-	_hud.show_bottom_panel()
-	_hud.open_job_panel()
+	# ⚠ 不再自动弹底栏。
+	# 原来开局会 show_bottom_panel() + open_job_panel() 做引导，
+	# 但用户截图确认**底栏压住了地图最下面一排**（聚落、居民都在那儿），
+	# 等于一开局就看不全村子 —— 与「主地图不能被挡住」这条硬要求冲突。
+	# 现在两个面板都默认隐藏，由顶栏的「功能」「对话」按钮开关；
+	# 该做什么改用顶栏第三行那句话提示（那里本来就写着「点哪里」）。
+	_hud.refresh()
 
 	_probe_ai()
 
@@ -181,11 +186,17 @@ func _start_music() -> void:
 	if st == null:
 		return
 	music.stream = st
-	music.volume_db = -12.0
+	# -12dB 实测偏轻（用户反馈"没听到"）。合成曲本身均方根只有 0.109，
+	# 比一般成品音乐轻，所以这里要往上给；-5dB 才是正常背景乐的音量。
+	music.volume_db = -5.0
 	music.bus = "Master"
 	add_child(music)
 	music.finished.connect(func() -> void: music.play())
 	music.play()
+	# 打一行日志：以后判断"音乐到底起没起"，看日志比听可靠
+	print("MUSIC 开始播放  driver=%s  时长=%.1fs  音量=%.1fdB  playing=%s"
+		% [AudioServer.get_driver_name(), st.get_length(),
+			music.volume_db, str(music.is_playing())])
 
 
 func _probe_ai() -> void:
