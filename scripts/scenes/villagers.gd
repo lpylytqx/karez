@@ -18,18 +18,8 @@ const FRAME_DUR := 0.16
 ## 走到离目标多近就算到了
 const ARRIVE_DIST := 2.5
 
-## 岗位 -> 工作地点（格子坐标）。这些位置要和 map_view 的实际布局对得上：
-## 竖井链在网格 x≈25 往左上斜；农田块在 (14,11) 起 5x3；聚落在南边一排。
-const WORKPLACE := {
-	"water":        Vector2(22.5, 13.0),   # 竖井链中段
-	"gather_wood":  Vector2(17.0, 7.0),    # 绿洲北侧树林
-	"gather_earth": Vector2(6.5, 11.0),    # 沙漠取土场
-	"craft":        Vector2(9.5, 13.5),    # 聚落作坊一侧
-	"farm":         Vector2(16.0, 12.5),   # 农田
-	"guard":        Vector2(21.5, 17.0),   # 聚落巡逻
-	"idle":         Vector2(18.5, 17.0),   # 营火边
-}
-
+## 工作地点的坐标**不写在这个文件里** —— 从 core/sites.gd 的 JOB_SITE 推导。
+## 这样把建筑挪走时，工作地点和居民自动跟着挪。
 const ORDER := ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]
 
 const JOB_CN := {
@@ -134,9 +124,10 @@ func _get_tex(path: String) -> Texture2D:
 	return _tex_cache[path]
 
 
-## 工作地点的像素坐标。同一岗位的多人按黄金角散开，避免叠成一个人。
+## 工作地点的像素坐标。**中心来自 core/sites.gd**（唯一真源），
+## 同一岗位的多人再按黄金角散开，避免叠成一个人。
 func _workplace_pos(jid: String, idx: int) -> Vector2:
-	var base: Vector2 = WORKPLACE.get(jid, Vector2(20.0, 16.0))
+	var base := Sites.job_xy(jid)
 	if idx <= 0:
 		return Vector2(base.x * TILE, base.y * TILE)
 	var k := float(idx)

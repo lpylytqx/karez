@@ -264,32 +264,27 @@ func _place_props() -> void:
 	if _game != null:
 		lv = int(_game.oasis_level())
 
-	# ── 聚落（南侧一排，位置按贴图实际尺寸错开，避免相互压盖）──
+	# ── 地标与建筑：坐标**全部来自 core/sites.gd**，这里不再写任何数字 ──
+	#
+	# 为什么改成循环：原先地图把坐标写在这、NPC 站位写在 townfolk、
+	# 工作地点写在 villagers —— 三张表靠手工保持一致，结果连续出错
+	# （为散开把人挪走、把厨房挪走忘了改厨娘、马厩门槛 lv>=3 骑手没地标）。
+	# 现在只有 sites.gd 一份坐标，NPC 与工作地点从它推导，
+	# 「建筑一挪、人和工作地点自动跟着挪」也就成立了。
 	# ⚠ 这一排不能低于 y≈272：底栏从 y=276 开始盖住地图。
-	# 64x64 的建筑以中心对齐，所以中心点最下只能到 15（=240px，占 208..272）。
-	_add_prop("res://buildings/warehouse_01.png", 7, 15.5)    # 48x48 仓库
-	_add_prop("res://buildings/reservoir_01.png", 12, 15)     # 64x64 涝坝
-	# ⚠ 这里原本摆的是 campfire_01.png，但**两个素材包里根本没有营火图块** ——
-	# 那张实际是 tiny-town #22（一棵橙色的树/石堆），当初被我当成了火。
-	# 查清后不再找替代品：厨房（吊锅）本来就是明确的炊具，
-	# 直接把它挪到村中心这个位置当灶，比虚构一个营火更实在。
-	_add_prop("res://buildings/kitchen_01.png", 17, 15.5)     # 32x32 灶（吊锅）
-	_add_prop("res://buildings/bazar_stall_red.png", 19, 15.5)
-	_add_prop("res://buildings/bazar_stall_blue.png", 21, 15.5)
-	_add_prop("res://buildings/inn_01.png", 26, 15)           # 64x64 驿馆
-	_add_prop("res://buildings/grape_drying_01.png", 30, 12)  # 48x64 晾房
-
-	# ── 开局就在的建筑：聚落要有基本样子 ──
-	# 马厩不设门槛 —— 哈萨克骑手就站在它旁边，没有马厩他就只能站在空沙漠里
-	# （用户截图里就是这样：他头上是晾房，脚下什么都没有）。
-	_add_prop("res://buildings/stable_01.png", 31, 15.5)     # 48x48 马厩
-
-	# ── 随绿洲等级逐步出现的建筑：绿洲越大，聚落越像样 ──
-	if lv >= 4:
-		_add_prop("res://buildings/watchtower_sand_01.png", 2, 11)
-	if lv >= 5:
-		_add_prop("res://buildings/shop_01.png", 6, 12.5)
-		_add_prop("res://buildings/workshop_01.png", 33, 13)
+	for id in Sites.PLACES:
+		var p: Dictionary = Sites.PLACES[id]
+		var tex := str(p.get("tex", ""))
+		var kind := str(p.get("kind", ""))
+		if tex == "" or kind == "area":
+			continue
+		# 随绿洲等级出现的点缀建筑
+		if id == "watchtower" and lv < 4:
+			continue
+		if (id == "shop" or id == "workshop_b") and lv < 5:
+			continue
+		var xy: Vector2 = p["xy"]
+		_add_prop("res://buildings/%s" % tex, xy.x, xy.y)
 
 	# ── 农田：坎儿井通水后才出现（水决定能种多少地）──
 	var slots: Array = []

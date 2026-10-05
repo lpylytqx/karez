@@ -34,24 +34,10 @@ const SKIN := {
 ##   巴扎(19,15.5)(21,15.5) 驿馆(26,15) 马厩(31,15.5，lv>=3 才出现)
 ##   马匪头目放在绿洲之外的沙漠里 —— 他本来就不该在村里
 ##
-## ⚠ 三条硬约束（都是被用户连着指正才定下来的）：
-##   1. y ≤ 16.4（=262px）：底栏从 y=268 开始，人会整个人被盖住
-##   2. **站建筑的左缘或右缘，不要站正前方。**
-##      建筑中心在 y 15~15.5，64px 高的房子占到 y≈17（272px），
-##      而底栏从 268 起 —— **根本没有「正前方」这个位置**。
-##      我按「正前方」摆过一次，结果是旅人站在涝坝里、压住了水面。
-##   3. **每座对应建筑必须开局就存在。** 骑手原本配的是马厩，
-##      而马厩门槛是 lv>=3 —— 开局第 1 天他只能站在空沙漠里。
-##      现在马厩改为开局即有（见 map_view 的 _place_props）。
-const SPOT := {
-	"lao_kanjiang":      Vector2(23.0, 13.4),   # 竖井链旁（他守着井，本来就不住村里）
-	"muqam_yiren":       Vector2(20.0, 16.4),   # 两座巴扎摊位的接缝处 (18~22)
-	"hasake_qishou":     Vector2(29.5, 16.4),   # 马厩左缘（马厩 29.5~32.5）
-	"hanshang_zhanggui": Vector2(24.0, 16.4),   # 驿馆左缘（驿馆 24~28）
-	"chuniang":          Vector2(15.0, 16.4),   # 灶左缘（灶 16~18）
-	"shenmi_lvren":      Vector2(9.6, 16.4),    # 涝坝左缘（涝坝 10~14）
-	"mafei_toumu":       Vector2(35.0, 6.0),    # 沙漠（村里不该有他）
-}
+## 站位**不再写在这个文件里** —— 从 core/sites.gd 推导：
+##     NPC 站位 = 他守着的地标 + 偏移
+## 这样把建筑挪走时，NPC 自动跟着挪，不会再出现「改了建筑忘了改站位」。
+## 规则见 sites.gd 的 NPC_HOME / NPC_OFFSET。
 
 ## 名牌纵向偏移。除乐师外统一 -30（贴着本人头顶）。
 ## 厨娘(17) 与 乐师(20) 只隔 3 格 = 48px，窄于名牌宽 62px，
@@ -94,13 +80,13 @@ var _near := ""
 func setup(player: Node2D) -> void:
 	_player = player
 	z_index = 7
-	for cid in SPOT:
+	for cid in Sites.NPC_HOME:
 		_make_person(str(cid))
 	set_process_unhandled_input(true)
 
 
 func _make_person(cid: String) -> void:
-	var cell := Vector2(SPOT[cid].x * TILE, SPOT[cid].y * TILE)
+	var cell := Sites.npc_xy(cid) * TILE
 
 	var sp := Sprite2D.new()
 	sp.texture = load(str(SKIN[cid]))
