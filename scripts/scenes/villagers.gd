@@ -15,6 +15,9 @@ const TILE := 16.0
 const FRAME_COLS := 4
 const SPEED := 30.0
 const FRAME_DUR := 0.16
+## 劳作动画：用的第几行、多久换一帧
+const WORK_ROW := 5
+const WORK_FRAME_DUR := 0.22
 ## 走到离目标多近就算到了
 const ARRIVE_DIST := 2.5
 
@@ -261,8 +264,29 @@ func _process(delta: float) -> void:
 			sp.frame = int(w["facing"]) * FRAME_COLS + _step_col(int(w["step"]))
 		else:
 			sp.position = w["target"]
-			# 停下时回到站立帧
-			sp.frame = int(w["facing"]) * FRAME_COLS + 1
+			# 到了工地：干活的岗位播**劳作动画**，守卫与待命仍站着。
+			#
+			# 劳作帧用的是素材里**本来就有的第 5 行** —— 64x112 的图按 4 列 7 行切，
+			# 代码一直只用到第 0~3 行（四个方向的走），第 4~6 行从来没被用过。
+			# 放大核对过（_wip/_sheet_chuniang_walk.png）：第 5 行是弯腰前伸的姿势，
+			# 正是干活的样子。**所以这个功能不需要新素材。**
+			if _is_labour(str(w["job"])):
+				w["anim_t"] = float(w["anim_t"]) + delta
+				if float(w["anim_t"]) >= WORK_FRAME_DUR:
+					w["anim_t"] = 0.0
+					w["step"] = (int(w["step"]) + 1) % FRAME_COLS
+				sp.frame = WORK_ROW * FRAME_COLS + int(w["step"])
+			else:
+				# 停下时回到站立帧
+				sp.frame = int(w["facing"]) * FRAME_COLS + 1
+
+
+## 会「动手」的岗位。守卫是站着看、待命是闲着，都不该播劳作动画。
+const LABOUR := ["water", "gather_wood", "gather_earth", "craft", "farm"]
+
+
+func _is_labour(jid: String) -> bool:
+	return LABOUR.has(jid)
 
 
 ## 行走序列：站立1 -> 左步0 -> 站立1 -> 右步2
