@@ -260,12 +260,38 @@ func _touches_land(keys: Array, x: int, y: int) -> bool:
 	return false
 
 
+## 建筑投影：拿建筑自己的剪影压暗、往东南偏几像素，铺在建筑下面。
+##
+## 为什么用「复制剪影」而不是画个椭圆色块：
+## 这些建筑形状各不相同（圆顶驿馆、方仓库、大锅灶），
+## 一个统一的椭圆放在圆顶和方盒子下面都会露馅；
+## 用剪影则自动贴合每一座的轮廓，不用为每栋单独调。
+##
+## 方向取东南（沙漠地区的斜阳感），偏移 3px 是像素画里够读出来、
+## 又不会让人觉得建筑「飘起来」的距离。
+const SHADOW_OFFSET := Vector2(3, 3)
+const SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.30)
+
+
+func _prop_shadow(tex: Texture2D, pos: Vector2, z: int) -> void:
+	var sh := Sprite2D.new()
+	sh.texture = tex
+	sh.centered = true
+	sh.position = pos + SHADOW_OFFSET
+	sh.modulate = SHADOW_COLOR
+	# 比本体低一层：不然影子会盖在自己的墙面上
+	sh.z_index = z - 1
+	_prop_root.add_child(sh)
+
+
 func _add_prop(path: String, gx: float, gy: float, z := 1) -> Sprite2D:
 	var sp := Sprite2D.new()
-	sp.texture = _get_tex(path)
+	var tex := _get_tex(path)
+	sp.texture = tex
 	sp.centered = true
 	sp.position = Vector2(gx * TILE, gy * TILE)
 	sp.z_index = z
+	_prop_shadow(tex, sp.position, z)
 	_prop_root.add_child(sp)
 	return sp
 
