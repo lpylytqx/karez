@@ -42,7 +42,7 @@ const SKIN := {
 ##   3. 同一行上相邻两人至少隔 5 格（80px），名牌宽 66px 才不会互相压住。
 const SPOT := {
 	"lao_kanjiang":      Vector2(23.0, 13.4),   # 竖井链旁 —— 他守着井，本来就不住村里
-	"muqam_yiren":       Vector2(21.5, 16.4),   # 巴扎摊位前（19,15.5)(21,15.5)
+	"muqam_yiren":       Vector2(21.5, 16.4),   # 巴扎摊位前 (19,15.5)(21,15.5)
 	"hasake_qishou":     Vector2(31.5, 16.4),   # 马厩前（31,15.5）
 	"hanshang_zhanggui": Vector2(26.5, 16.4),   # 驿馆前（26,15）
 	"chuniang":          Vector2(16.5, 16.4),   # 营火前（17,15.5）
