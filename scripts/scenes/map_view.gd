@@ -225,11 +225,16 @@ func _build_terrain() -> void:
 			row.append(key)
 		keys.append(row)
 
+	# ⚠ 这里原来还有一步：把贴边的沙漠格换成 "edge"（desert_light_*），
+	# 想做出渐变的边界。**结果反而是一条错位的方块带**，已在实机截图上确认：
+	# desert_light_* 每张都自带一块固定位置的橙色斑块，而 16x16 的 Tile
+	# 没法按方向旋转去「朝向」绿洲 —— 于是每个边界格都重复同一块斑，
+	# 连起来就是一排各说各话的方块，比硬边还难看。
+	# 去掉之后边界是「纯沙 → 草底纹」的直边，像素画里这样读起来是干净的；
+	# 而且上面 221~224 行已经给绿洲边缘做了随机抖动，边界不会是个死板的圆。
 	for y in range(ROWS):
 		for x in range(COLS):
 			var key: String = str(keys[y][x])
-			if key == "desert" and _touches_land(keys, x, y):
-				key = "edge"
 			var paths: Array = TERRAIN_TEX[key]
 			var sp := Sprite2D.new()
 			sp.texture = _get_tex(str(paths[_rng.randi() % paths.size()]))
@@ -238,7 +243,11 @@ func _build_terrain() -> void:
 			_terrain_root.add_child(sp)
 
 
-## 四邻中是否有非沙漠格（用于判断该不该用交界过渡贴图）。
+## 四邻中是否有非沙漠格。
+## ⚠ 现在没人调用了 —— 「贴边换过渡贴图」那套已经去掉（见 _build_terrain 的注释：
+## desert_light_* 自带固定斑块、Tile 又不能旋转，拼出来是错位的方块带）。
+## 保留函数是留给以后真做定向过渡时用；若确定不做，可连同
+## TERRAIN_TEX 里的 "edge" 一起删掉。
 func _touches_land(keys: Array, x: int, y: int) -> bool:
 	for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		var nx := x + int(off.x)
