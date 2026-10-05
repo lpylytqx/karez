@@ -22,10 +22,20 @@ const ROWS := 22
 const OASIS_RADIUS := [3.2, 4.8, 6.2, 7.6, 9.0, 10.4, 11.8]
 
 const TERRAIN_TEX := {
-	"desert": ["res://tiles/terrain/desert_light_01.png", "res://tiles/terrain/desert_light_02.png"],
+	# 沙漠底用「程序化生成的纯沙」（scripts/pipeline/make_sand.py）。
+	#
+	# 为什么不用现成的 desert_light_01/02：那两张**各自带一块橙黄色斑块**，
+	# 是设计给「沙漠 ↔ 其他地形」交界处用的**过渡贴图**，不是底纹。
+	# 拿它们平铺整张地图（40x22 = 880 次）会得到明显的墙纸效果 ——
+	# 斑块等距重复，一眼就看得出是贴图而不是沙地（实机截图确认过）。
+	# 而这批素材里没有纯沙漠底，所以按 32 色板程序化生成。
+	"desert": ["res://tiles/terrain/sand_base_01.png", "res://tiles/terrain/sand_base_02.png",
+		"res://tiles/terrain/sand_base_03.png", "res://tiles/terrain/sand_ripple_01.png"],
 	"sparse": ["res://tiles/terrain/grass_sparse_01.png", "res://tiles/terrain/grass_sparse_02.png"],
 	"medium": ["res://tiles/terrain/grass_medium_01.png", "res://tiles/terrain/grass_medium_02.png"],
 	"lush":   ["res://tiles/terrain/grass_lush_01.png", "res://tiles/terrain/grass_lush_02.png"],
+	# 绿洲与沙漠交界处用过渡贴图，让边界不那么生硬
+	"edge":   ["res://tiles/terrain/desert_light_01.png", "res://tiles/terrain/desert_light_02.png"],
 }
 
 ## 竖井链：从聚落斜向北（往山里去）。
@@ -152,7 +162,13 @@ func _build_terrain() -> void:
 	var cx := COLS / 2.0
 	var cy := ROWS / 2.0 + 1.0
 	var r := oasis_radius()
+
+	# 分两步：先把每格的地形类型算出来，再贴图。
+	# 之所以要两步，是为了让沙漠格能看见邻居 —— 紧贴绿洲的那圈沙漠改用过渡贴图，
+	# 边界就不会是一条生硬的直边。（desert_light_* 本来就是干这个用的。）
+	var keys: Array = []
 	for y in range(ROWS):
+		var row: Array = []
 		for x in range(COLS):
 			var d := Vector2(x - cx, y - cy).length()
 			var key := _terrain_key(d, r)
@@ -161,12 +177,33 @@ func _build_terrain() -> void:
 				key = "desert"
 			elif key == "desert" and d < r + 1.5 and _rng.randf() < 0.20:
 				key = "sparse"
+			row.append(key)
+		keys.append(row)
+
+	for y in range(ROWS):
+		for x in range(COLS):
+			var key: String = str(keys[y][x])
+			if key == "desert" and _touches_land(keys, x, y):
+				key = "edge"
 			var paths: Array = TERRAIN_TEX[key]
 			var sp := Sprite2D.new()
 			sp.texture = _get_tex(str(paths[_rng.randi() % paths.size()]))
 			sp.centered = false
 			sp.position = Vector2(x * TILE, y * TILE)
 			_terrain_root.add_child(sp)
+
+
+## 四邻中是否有非沙漠格（用于判断该不该用交界过渡贴图）。
+func _touches_land(keys: Array, x: int, y: int) -> bool:
+	for off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx := x + int(off.x)
+		var ny := y + int(off.y)
+		if nx < 0 or ny < 0 or nx >= COLS or ny >= ROWS:
+			continue
+		var k := str(keys[ny][nx])
+		if k != "desert" and k != "edge":
+			return true
+	return false
 
 
 func _add_prop(path: String, gx: float, gy: float, z := 1) -> Sprite2D:
@@ -227,17 +264,37 @@ func _place_props() -> void:
 		for c in range(FIELD_COLS):
 			slots.append(Vector2i(FIELD_X0 + c, FIELD_Y0 + r))
 	var fields := clampi(lv * 2, 0, slots.size())
-	var crops := [
-		"res://tiles/farmland/crop_stage_1_seedling.png",
-		"res://tiles/farmland/crop_stage_2_sprout.png",
-		"res://tiles/farmland/crop_stage_3_growing.png",
-		"res://tiles/farmland/crop_stage_4_ripe.png",
+	# 每块地一种作物，按地块顺序推进生长阶段 —— 一眼能看出「这片地在长东西」。
+	# 只用番茄一条线会显得单调，所以掺了胡萝卜/茄子/玉米/卷心菜。
+	var crop_lines: Array = [
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_stage_3_growing", "crop_stage_4_ripe"],
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_carrot"],
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_eggplant"],
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_corn"],
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_cabbage"],
+		["crop_stage_1_seedling", "crop_stage_2_sprout", "crop_wheat"],
 	]
 	for i in range(fields):
 		var g: Vector2i = slots[i]
 		_add_prop("res://tiles/farmland/soil_tilled_a.png", g.x, g.y)
-		var stage := clampi(int(round(float(i) / maxf(1.0, float(fields - 1)) * 3.0)), 0, 3)
-		_add_prop(str(crops[stage]), g.x, g.y, 2)
+		var line: Array = crop_lines[i % crop_lines.size()]
+		var t := float(i) / maxf(1.0, float(maxi(1, fields - 1)))
+		var stage := clampi(int(round(t * float(line.size() - 1))), 0, line.size() - 1)
+		_add_prop("res://tiles/farmland/%s.png" % str(line[stage]), g.x, g.y, 2)
+
+	# ── 聚落里的活物与杂物：让画面不至于空得像布景 ──
+	if lv >= 1:
+		_add_prop("res://tiles/props/animal_chicken_01.png", 18.5, 14.5)
+		_add_prop("res://tiles/props/person_farmer_01.png", 15.5, 14.5)
+	if lv >= 2:
+		_add_prop("res://tiles/props/animal_sheep_01.png", 23, 14.5)
+		_add_prop("res://tiles/props/barrel_wood_01.png", 9, 14.2)
+	if lv >= 3:
+		_add_prop("res://tiles/props/animal_donkey_01.png", 27, 14.5)
+		_add_prop("res://tiles/props/crate_wood_01.png", 12, 14.2)
+	if lv >= 4:
+		_add_prop("res://tiles/props/basket_01.png", 21.5, 14.2)
+		_add_prop("res://tiles/props/sunflower_01.png", 5, 12)
 
 	# ── 绿洲内植被 ──
 	var r := oasis_radius()
