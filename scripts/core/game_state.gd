@@ -32,6 +32,8 @@ var _pending_speaker := ""
 var _pending_recent: Array = []
 ## 本次请求的玩家原话。用于 AI 漏记承诺时的本地兜底。
 var _pending_input := ""
+## 最近一次日结算的产出明细，供 HUD 显示「今天为什么涨/跌」。
+var _last_gain: Dictionary = {}
 
 
 func _ready() -> void:
@@ -110,11 +112,18 @@ func _initial_state() -> Dictionary:
 			"silver": float(res_cfg.get("silver", {}).get("initial", 40)),
 		},
 		"population": 6,
+		# 岗位分配（S3 经营骨架）。每个居民每天占一个岗位，见 numbers.json 的
+		# population.jobs.list。初始：3 人治水、1 采木、1 取土、1 耕作。
+		"jobs": {"water": 3, "gather_wood": 1, "gather_earth": 1, "craft": 0,
+			"farm": 1, "guard": 0, "idle": 0},
 		"stats": {"prosperity": 5.0, "reputation": 10.0, "morale": 55.0, "security": 40.0},
 		# 建筑：id -> {level, condition}。condition 从 100 递减，低于 30 功能打折。
 		"buildings": {},
 		# 施工队列：同一时刻只允许一项在修（单人经营的节奏约束）
-		"construction": {"kind": "", "target": "", "display": "", "days_left": 0, "total_days": 0},
+		# progress 是「工时进度」的小数累积：治水人数 / 3 每天累加，
+		# 每满 1.0 就扣掉一天工期。所以派的人越多，工程越快。
+		"construction": {"kind": "", "target": "", "display": "",
+			"days_left": 0, "total_days": 0, "progress": 0.0},
 		# 行动点：每个时段重置，用于限制点击式操作（与回合制一致）
 		"action_points": 2,
 		"characters": {
@@ -561,6 +570,164 @@ func _cull_memory(mem: Array) -> void:
 
 
 # ---------------------------------------------------------------------------
+# 岗位分配（S3 经营骨架）
+# ---------------------------------------------------------------------------
+#
+# 设计来源：numbers.json 的 population.jobs.list。每个居民每天占一个岗位，
+# 「安排谁去干什么」就是这个游戏的主要决策。
+#
+# 第一版漏掉了这一层，结果玩家挖完第一段竖井就卡死 —— 第 2 段缺土，
+# 而木/土/工具**没有任何产出途径**。数值算得明明白白：初始材料只够挖 1 段。
+# 现在补上：采集给材料、耕作给粮、治水推进工程。
+
+const JOB_IDS := ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]
+
+const JOB_CN := {
+	"water": "治水", "gather_wood": "采木", "gather_earth": "取土",
+	"craft": "做工", "farm": "耕作", "guard": "守卫", "idle": "待命",
+}
+
+
+func job_count(id: String) -> int:
+	return maxi(0, int(state.get("jobs", {}).get(id, 0)))
+
+
+func total_assigned() -> int:
+	var n := 0
+	for j in JOB_IDS:
+		n += job_count(j)
+	return n
+
+
+## 还没分配的人。允许为负（人口减少时），调用方据此提示玩家重排。
+func unassigned() -> int:
+	return int(state.get("population", 0)) - total_assigned()
+
+
+## 调整某岗位人数。加人时优先消耗「待命」名额，其次才是完全没分配的人。
+func assign_job(id: String, delta: int) -> bool:
+	if not JOB_IDS.has(id):
+		return false
+	var jobs: Dictionary = state["jobs"]
+	var want := job_count(id) + delta
+	if want < 0:
+		return false
+
+	if delta > 0:
+		var from_idle := mini(delta, job_count("idle"))
+		if from_idle > 0:
+			jobs["idle"] = job_count("idle") - from_idle
+		var rest := delta - from_idle
+		if rest > 0 and unassigned() < rest:
+			# 名额不够，把刚扣掉的待命还回去，保持状态一致
+			jobs["idle"] = job_count("idle") + from_idle
+			return false
+
+	jobs[id] = want
+	state_changed.emit()
+	return true
+
+
+## 人口变动后把分配数夹到合法范围（优先削减待命以外的新增）。
+func normalize_jobs() -> void:
+	if not state.has("jobs"):
+		state["jobs"] = {}
+	var jobs: Dictionary = state["jobs"]
+	for j in JOB_IDS:
+		if not jobs.has(j):
+			jobs[j] = 0
+	# 超员就从「待命 → 守卫 → 耕作 → 取土 → 采木 → 治水」的顺序往回削，
+	# 保留治水 —— 那是玩家的主线，不该被自动化悄悄砍掉
+	while total_assigned() > int(state.get("population", 0)):
+		var trimmed := false
+		for j in ["idle", "guard", "farm", "gather_earth", "gather_wood"]:
+			if job_count(j) > 0:
+				jobs[j] = job_count(j) - 1
+				trimmed = true
+				break
+		if not trimmed and job_count("water") > 0:
+			jobs["water"] = job_count("water") - 1
+		elif not trimmed:
+			break
+
+
+## 农田块数：随坎儿井段数增长 —— 水决定能种多少地，这是核心正循环。
+func farmland_plots() -> int:
+	var cfg: Dictionary = numbers.get("agriculture", {}).get("farmland", {})
+	var per := int(cfg.get("plots_per_karez_section", 4))
+	var cap_p := int(cfg.get("max_plots", 24))
+	return clampi(int(state["karez"].get("sections", 0)) * per, 0, cap_p)
+
+
+## 每块田每日产粮。取 agriculture.crops.wheat 的 产量/生长天数 摊到每天 ——
+## 这样「一季熟一次」的设定与「每天入账一点」的玩法能对上，不另发明数值。
+func food_per_plot() -> float:
+	var w: Dictionary = numbers.get("agriculture", {}).get("crops", {}).get("wheat", {})
+	var y := float(w.get("yield_per_plot", 35))
+	var d := maxf(1.0, float(w.get("grow_days", 22)))
+	return y / d
+
+
+## 每日岗位结算。返回本日产出明细，供 UI 显示「今天为什么涨/跌」。
+func _settle_jobs() -> Dictionary:
+	normalize_jobs()
+	var gain := {"wood": 0.0, "earth": 0.0, "tools": 0.0, "food": 0.0, "silver": 0.0}
+	var mat: Dictionary = state["resources"]["materials"]
+
+	var gcfg: Dictionary = numbers.get("resources", {}).get("materials", {}).get("gathering", {})
+	gain["wood"] = float(gcfg.get("wood_per_labor_day", 8)) * float(job_count("gather_wood"))
+	gain["earth"] = float(gcfg.get("earth_per_labor_day", 12)) * float(job_count("gather_earth"))
+	mat["wood"] = float(mat.get("wood", 0.0)) + gain["wood"]
+	mat["earth"] = float(mat.get("earth", 0.0)) + gain["earth"]
+
+	# 采集的人顺带带回食物（绿洲边采野果、打猎）。
+	# 初始 78 存粮只够 4.3 天，而达到粮食自给要挖到 2 段竖井 ——
+	# 没有这个补充，玩家会在自给之前先饿死（60 天自动模拟确认过）。
+	var gatherers := job_count("gather_wood") + job_count("gather_earth")
+	gain["food"] = float(gcfg.get("food_per_labor_day", 0)) * float(gatherers)
+
+	# 耕作：一名农夫可管 plots_per_farmer 块田。
+	# ⚠ 第一版写「每块田需 1 名农夫」，配上 wheat 的 1.59 粮/田/天，
+	# 就等于一个农夫连自己都养不活（人吃 3/天）—— 任何玩法都必然饿死。
+	# 60 天自动模拟里就是粮一直 0、人口从 6 掉到 2。现实里一个农夫能种好几亩地。
+	var per_farmer := int(numbers.get("agriculture", {}).get("farmland", {})
+		.get("plots_per_farmer", 4))
+	var worked := mini(farmland_plots(), job_count("farm") * per_farmer)
+	gain["food"] += float(worked) * food_per_plot()
+	if gain["food"] > 0.0:
+		state["resources"]["food"]["grain"] = \
+			float(state["resources"]["food"].get("grain", 0.0)) + gain["food"]
+
+	# 做工：产工具。六段竖井的工具门槛是 0/1/2/3/4/6，
+	# 而 gather 只产木与土 —— 没有这个岗位，工具会永远停在开局那 4 把，
+	# 玩家第 6 段永远挖不动（模拟测试里就是这么卡住的）。
+	var crafters := job_count("craft")
+	gain["tools"] = float(crafters)
+	if gain["tools"] > 0.0:
+		mat["tools"] = float(mat.get("tools", 0.0)) + gain["tools"]
+
+	# 守卫：security +5/人，上限 60（numbers.json population.jobs.list 的说明）
+	if job_count("guard") > 0:
+		state["stats"]["security"] = minf(60.0,
+			float(state["stats"]["security"]) + 5.0 * float(job_count("guard")))
+
+	# 待命：恢复士气
+	if job_count("idle") > 0:
+		state["stats"]["morale"] = minf(100.0,
+			float(state["stats"]["morale"]) + 0.5 * float(job_count("idle")))
+
+	# 银两：已建成的建筑按 income_per_guest_day 产生收入
+	for bid in state.get("buildings", {}):
+		var b := _building_cfg(str(bid))
+		gain["silver"] += float(b.get("income_per_guest_day", 0.0))
+	if gain["silver"] > 0.0:
+		state["resources"]["silver"] = \
+			float(state["resources"]["silver"]) + gain["silver"]
+
+	return gain
+
+
+# ---------------------------------------------------------------------------
 # 给 AI 的状态摘要（不是整包状态 —— 省 token 且防模型乱改）
 # ---------------------------------------------------------------------------
 
@@ -597,9 +764,11 @@ func get_day() -> int:
 ## 推进一天：出水量入账、消耗扣除、施工推进、季节轮转。
 ## 返回完工提示（无则空串），供 UI 弹提示用。
 func advance_day() -> String:
-	# 施工必须先推进：完工会让 sections 加一，而 sections 直接决定当天出水量。
-	# 早先把这一步放在函数末尾，导致「完工当天的水量仍是旧值」——
-	# 玩家挖完井看不见水量变化，要等到第二天才生效。这是实机测出来的。
+	# 顺序有讲究：
+	#   1. 岗位产出（采集/耕作/守卫/待命）—— 先干活才有材料
+	#   2. 施工推进 —— 完工会让 sections 加一，而 sections 直接决定当天出水量
+	#   3. 水入账 / 扣粮 / 人口变动
+	_last_gain = _settle_jobs()
 	var finished := _tick_construction()
 
 	var karez_cfg: Dictionary = numbers.get("karez", {})
@@ -629,10 +798,59 @@ func advance_day() -> String:
 		state["stats"]["morale"] = maxf(0.0, float(state["stats"]["morale"]) - 3.0)
 
 	state["calendar"]["day"] = get_day() + 1
+	# 新的一天从早晨开始，行动点回到每时段的上限。
+	# 此前只有 advance_phase 会重置行动点，直接调 advance_day 就会把 AP 耗尽
+	# 且永远不恢复 —— 模拟测试里表现成「材料堆成山却再也挖不动」。
+	state["action_points"] = int(numbers.get("calendar", {}).get("action_points_per_phase", 2))
 	_roll_season()
+	_roll_population()
 	clamp_all()
 	state_changed.emit()
 	return finished
+
+
+## 人口增减。规则取自 numbers.json 的 population.growth。
+func _roll_population() -> void:
+	var cfg: Dictionary = numbers.get("population", {})
+	var food_days := food_days_left()
+	var morale := float(state["stats"]["morale"])
+	var pop := int(state["population"])
+	var cap := population_capacity()
+	if food_days >= 5.0 and morale >= 55.0 and pop < cap:
+		if randf() < 0.12:
+			state["population"] = pop + 1
+			normalize_jobs()
+	elif food_days < 2.0 or morale < 30.0:
+		if randf() < 0.08 and pop > 1:
+			state["population"] = pop - 1
+			normalize_jobs()
+
+
+## 现有存粮还能吃几天。人口增减的判据之一。
+func food_days_left() -> float:
+	var total := 0.0
+	for k in state["resources"]["food"]:
+		total += float(state["resources"]["food"][k])
+	var per := int(numbers.get("population", {}).get("daily_consumption", {})
+		.get("food_per_person", 3)) * int(state["population"])
+	return total / maxf(1.0, float(per))
+
+
+## 人口上限。numbers.json: min(reservoir_capacity / 30, irrigated_plots * 3, housing_capacity)。
+## 下限取开局人口，免得公式在「还没开田」时把容量算成 0。
+func population_capacity() -> int:
+	var water_cap := float(state["resources"]["water"].get("capacity", 300))
+	var by_water := int(water_cap / 30.0)
+	var by_farm := farmland_plots() * 3
+	var cap := mini(by_water, by_farm)
+	var housing := 0
+	for b in numbers.get("buildings", {}).get("list", []):
+		if state.get("buildings", {}).has(str(b.get("id", ""))):
+			housing += int(b.get("effect", {}).get("lodging_capacity", 0))
+	if housing > 0:
+		cap = mini(cap, housing)
+	var floor_pop := int(numbers.get("population", {}).get("initial", 6))
+	return maxi(floor_pop, cap)
 
 
 func _consume_food(amount: int) -> void:
@@ -707,6 +925,11 @@ func set_flag(flag: String, value: bool = true) -> void:
 
 func action_points() -> int:
 	return int(state.get("action_points", 0))
+
+
+## 最近一次日结算的产出明细（木/土/粮/银），供 HUD 解释「今天为什么涨」。
+func last_gain() -> Dictionary:
+	return _last_gain
 
 
 func spend_action_point(n: int = 1) -> bool:
@@ -804,6 +1027,7 @@ func start_dig() -> Dictionary:
 		"display": str(cfg.get("display", "竖井")),
 		"days_left": int(cfg.get("days", 1)),
 		"total_days": int(cfg.get("days", 1)),
+		"progress": 0.0,
 	}
 	clamp_all()
 	state_changed.emit()
@@ -864,6 +1088,7 @@ func start_build(id: String) -> Dictionary:
 		"display": str(cfg.get("display", id)),
 		"days_left": int(cfg.get("days", 1)),
 		"total_days": int(cfg.get("days", 1)),
+		"progress": 0.0,
 	}
 	clamp_all()
 	state_changed.emit()
@@ -871,11 +1096,23 @@ func start_build(id: String) -> Dictionary:
 
 
 ## 施工推进一天，返回完工提示（无完工返回空串）。
+##
+## 速度取决于**派了多少人去治水** —— 这正是岗位分配的意义所在。
+## 基准 3 人 = 每天推进 1 天工期；派 6 人就快一倍，一个人不派就完全停工。
 func _tick_construction() -> String:
 	if construction_idle():
 		return ""
+	var water := job_count("water")
+	if water <= 0:
+		return ""
+
 	var c: Dictionary = state["construction"]
-	c["days_left"] = int(c["days_left"]) - 1
+	c["progress"] = float(c.get("progress", 0.0)) + float(water) / 3.0
+	if float(c["progress"]) < 1.0:
+		return ""
+	var steps := int(float(c["progress"]))
+	c["progress"] = float(c["progress"]) - float(steps)
+	c["days_left"] = int(c["days_left"]) - steps
 	if int(c["days_left"]) > 0:
 		return ""
 
@@ -894,7 +1131,8 @@ func _tick_construction() -> String:
 		state["buildings"][target] = {"level": 1, "condition": 100.0}
 		state["stats"]["prosperity"] = minf(100.0, float(state["stats"]["prosperity"]) + 1.5)
 
-	state["construction"] = {"kind": "", "target": "", "display": "", "days_left": 0, "total_days": 0}
+	state["construction"] = {"kind": "", "target": "", "display": "",
+		"days_left": 0, "total_days": 0, "progress": 0.0}
 	return "【完工】%s 已建成" % display
 
 

@@ -60,8 +60,10 @@ func _ready() -> void:
 	_game.response_received.connect(_on_response)
 	_game.request_failed.connect(_on_failed)
 
-	_hud.append_log("[b]《坎儿井》[/b] —— 挖通竖井，绿洲会跟着长大。")
-	_hud.append_log("[color=#888888]点地图上的竖井，或用右侧「挖竖井」。WASD / 方向键移动。[/color]")
+	# 教程必须塞进日志的 3 行里 —— 写多了会被顶掉，玩家只看到后半截
+	_hud.append_log("[b]《坎儿井》[/b] 水只够 7 天、粮只够 4 天 —— 挖通竖井才能活。")
+	_hud.append_log("[color=#8fd3ff]①[/color]点「挖竖井」　[color=#8fd3ff]②[/color]点「分工」派人采木取土")
+	_hud.append_log("[color=#8fd3ff]③[/color]「推进时段」×4 = 过一天。每天看右栏「昨产」调分工。")
 	_probe_ai()
 
 

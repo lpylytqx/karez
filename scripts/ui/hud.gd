@@ -57,6 +57,11 @@ var _popup_event: Dictionary = {}
 
 var _build_menu: Panel
 
+## 分工面板（S3）。每行是一个岗位：标签 + 「−」「＋」两个按钮。
+var _job_panel: Panel
+var _job_rows: Dictionary = {}
+var _job_free: Label
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -165,23 +170,93 @@ func _build_right() -> void:
 	var bbuild := _make_button(p, Rect2(4, 76, 96, 24), "建造 ▾")
 	bbuild.pressed.connect(_on_build_pressed)
 
-	var bnext := _make_button(p, Rect2(4, 102, 96, 24), "推进时段")
+	var bjob := _make_button(p, Rect2(4, 102, 96, 24), "分工 ▾")
+	bjob.pressed.connect(_on_job_pressed)
+
+	var bnext := _make_button(p, Rect2(4, 128, 96, 24), "推进时段")
 	bnext.pressed.connect(func(): next_phase_requested.emit())
 
-	var bev := _make_button(p, Rect2(4, 128, 96, 24), "查看事件")
+	var bev := _make_button(p, Rect2(4, 154, 96, 24), "查看事件")
 	bev.pressed.connect(func(): event_requested.emit())
 
-	var bsave := _make_button(p, Rect2(4, 154, 46, 24), "存档")
+	var bsave := _make_button(p, Rect2(4, 180, 46, 24), "存档")
 	bsave.pressed.connect(func(): save_requested.emit())
-	var bload := _make_button(p, Rect2(54, 154, 46, 24), "读档")
+	var bload := _make_button(p, Rect2(54, 180, 46, 24), "读档")
 	bload.pressed.connect(func(): load_requested.emit())
 
-	# 底部这块放实时施工进度，比静态帮助文字有用
-	_info = _make_label(p, Vector2(4, 180), Vector2(96, 46), "")
+	# 底部这块显示实时信息：今天产出了多少
+	_info = _make_label(p, Vector2(4, 208), Vector2(96, 36), "")
 	_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info.modulate = Color(0.72, 0.66, 0.55)
 
 	_build_panel()
+	_build_job_panel()
+
+
+## 分工面板 —— S3 的核心界面。没有它，玩家碰不到岗位系统。
+func _build_job_panel() -> void:
+	_job_panel = Panel.new()
+	_job_panel.position = Vector2(300, 40)
+	_job_panel.size = Vector2(228, 232)
+	_job_panel.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.97)))
+	_job_panel.visible = false
+	add_child(_job_panel)
+
+	_make_label(_job_panel, Vector2(6, 2), Vector2(216, 23), "── 分工（每个人占一个岗位）──")
+
+	# 每行：岗位名 + 人数 + ─ / ＋ 两个按钮
+	var y := 26.0
+	for jid in ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]:
+		_job_rows[jid] = _make_label(_job_panel, Vector2(6, y), Vector2(120, 23), "")
+		var minus := _make_button(_job_panel, Rect2(128, y + 1, 26, 22), "−")
+		minus.pressed.connect(_on_job_delta.bind(str(jid), -1))
+		var plus := _make_button(_job_panel, Rect2(156, y + 1, 26, 22), "＋")
+		plus.pressed.connect(_on_job_delta.bind(str(jid), 1))
+		y += 25.0
+
+	_job_free = _make_label(_job_panel, Vector2(6, y + 2), Vector2(216, 23), "")
+	_job_free.modulate = Color(1.0, 0.85, 0.45)
+
+
+func _on_job_pressed() -> void:
+	if _job_panel == null:
+		return
+	_job_panel.visible = not _job_panel.visible
+	if _job_panel.visible:
+		_refresh_jobs()
+
+
+func _on_job_delta(jid: String, delta: int) -> void:
+	if _game == null:
+		return
+	if not _game.assign_job(jid, delta):
+		append_log("[color=#ffd479]没有空闲人手了 —— 先从别的岗位撤一个人。[/color]")
+	_refresh_jobs()
+
+
+func _refresh_jobs() -> void:
+	if _game == null or _job_panel == null:
+		return
+	for jid in _job_rows:
+		var n: int = _game.job_count(str(jid))
+		var lbl: Label = _job_rows[jid]
+		lbl.text = "%s　%d 人" % [_job_cn(str(jid)), n]
+		lbl.modulate = Color(1, 1, 1) if n > 0 else Color(0.55, 0.5, 0.45)
+	var free: int = _game.unassigned()
+	if free > 0:
+		_job_free.text = "还有 %d 人没安排" % free
+		_job_free.modulate = Color(1.0, 0.6, 0.5)
+	elif free < 0:
+		_job_free.text = "人手不足，请减少岗位"
+		_job_free.modulate = Color(1.0, 0.5, 0.5)
+	else:
+		_job_free.text = "全部 %d 人已分配" % int(_game.query("population"))
+		_job_free.modulate = Color(0.65, 0.95, 0.65)
+
+
+func _job_cn(jid: String) -> String:
+	return {"water": "治水", "gather_wood": "采木", "gather_earth": "取土",
+		"craft": "做工", "farm": "耕作", "guard": "守卫", "idle": "待命"}.get(jid, jid)
 
 
 func _build_panel() -> void:
@@ -425,16 +500,21 @@ func refresh() -> void:
 	]
 	_res.modulate = Color(1.0, 0.68, 0.6) if shortage else Color(1, 1, 1)
 
-	# 右栏底部这块显示「坎儿井整体进度」，与按钮旁那行「本次能不能挖」不重复。
-	# 注意：整块只有 1~2 行空间，写长了会溢出面板下沿（实机截图里「剩 5/5 天」被底栏切掉）。
-	var sections_now := int(_game.query("karez.sections"))
-	if sections_now >= 6:
-		_info.text = "竖井 %d/6\n已到源段" % sections_now
+	# 右栏底部：显示「昨天产出了什么」+ 田块进度。
+	# 这是玩家判断分工是否合理的唯一依据 —— 没有它，岗位分配就是盲猜。
+	var sec := int(_game.query("karez.sections"))
+	var g: Dictionary = _game.last_gain()
+	var plots_n: int = _game.farmland_plots()
+	if g.is_empty():
+		_info.text = "田 %d 块\n井 %d/6" % [plots_n, sec]
 	else:
-		var days_next := int(_game.dig_info().get("days", 0))
-		# 显式换行：让 96px 宽自动折行会把「下段」拆成「下」/「段」
-		_info.text = "竖井 %d/6\n下段 %d 天" % [sections_now, days_next]
+		_info.text = "田 %d 块 井 %d/6\n昨产 木%.0f 土%.0f 粮%.0f" % [
+			plots_n, sec, float(g.get("wood", 0.0)),
+			float(g.get("earth", 0.0)), float(g.get("food", 0.0))]
 	_info.modulate = Color(0.72, 0.66, 0.55)
+
+	if _job_panel != null and _job_panel.visible:
+		_refresh_jobs()
 
 	_refresh_dig()
 

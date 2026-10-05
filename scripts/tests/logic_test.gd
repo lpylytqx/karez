@@ -31,6 +31,7 @@ func _ready() -> void:
 	_test_event_select()
 	_test_event_resolve()
 	_test_memory()
+	_test_s3_loop()
 	_test_save_roundtrip()
 
 	print("=".repeat(64))
@@ -339,6 +340,115 @@ func _test_memory() -> void:
 	var legacy: Array = _game.get_memory(cid)
 	_eq(legacy.size(), 1, "旧格式字符串条目可读")
 	_ok(str(legacy[0]).contains("旧格式"), "旧格式内容正确")
+
+
+func _test_s3_loop() -> void:
+	_section("S3 经营骨架：岗位分配与资源循环")
+
+	var g: Node = load("res://core/game_state.gd").new()
+	add_child(g)
+
+	_eq(g.job_count("water"), 3, "开局 3 人治水")
+	_eq(g.total_assigned(), 6, "6 人全部分配")
+	_eq(g.unassigned(), 0, "没有闲置人口")
+	_eq(g.assign_job("gather_wood", 1), false, "人手全占满时不能再加岗位")
+	_eq(g.assign_job("water", -1), true, "可以先从治水撤 1 人")
+	_eq(g.unassigned(), 1, "撤下 1 人后出现闲置")
+	_eq(g.assign_job("gather_wood", 1), true, "把闲置的人派去采木")
+	_eq(g.unassigned(), 0, "再次满员")
+	_eq(g.job_count("gather_wood"), 2, "采木变为 2 人")
+
+	# 农田：田块数随坎儿井段数增长（核心正循环）
+	_eq(g.farmland_plots(), 0, "0 段竖井 -> 0 块田")
+	_ok(g.food_per_plot() > 1.0, "每块田每天产粮 %.2f" % g.food_per_plot())
+
+	# 采集产出真的入账
+	var bw := float(g.query("resources.materials.wood"))
+	var be := float(g.query("resources.materials.earth"))
+	g.advance_day()
+	_ok(float(g.query("resources.materials.wood")) > bw, "采木岗位让木料增加")
+	_ok(float(g.query("resources.materials.earth")) > be, "取土岗位让土料增加")
+
+	# 治水人数为 0 时工程完全停工 —— 这是岗位分配的意义
+	var g2: Node = load("res://core/game_state.gd").new()
+	add_child(g2)
+	while g2.job_count("water") > 0:
+		g2.assign_job("water", -1)
+	g2.start_dig()
+	var dl0 := int(g2.query("construction.days_left"))
+	for i in range(5):
+		g2.advance_day()
+	_eq(int(g2.query("construction.days_left")), dl0, "无人治水时工期完全不推进（%d 天）" % dl0)
+
+	# ── 自动模拟：用「朴素分配」打 60 天，看能不能活下来并挖通几段 ──
+	var s: Node = load("res://core/game_state.gd").new()
+	add_child(s)
+	var dead_day := -1
+	for day in range(1, 61):
+		var pop := int(s.query("population"))
+		var plots: int = s.farmland_plots()
+		# 朴素但合理的策略：
+		#   1. 先按「够吃」定农夫数（一名农夫管 4 块田）
+		#   2. 留 2 人治水保证工程推进
+		#   3. 缺工具就派 1 人做工
+		#   4. 余下的人平分去采木取土
+		var per_farmer := 4
+		var eat := 3.0
+		var need_food := float(pop) * eat
+		var per_plot: float = s.food_per_plot()
+		var farmers := int(ceil(need_food / (per_plot * float(per_farmer))))
+		farmers = clampi(farmers, 0, maxi(0, int(ceil(float(plots) / float(per_farmer)))))
+		var tools_now := float(s.query("resources.materials.tools"))
+		var crafters := 1 if tools_now < 8.0 else 0
+		var water := mini(2, pop)
+
+		var rest := maxi(0, pop - farmers - crafters - water)
+		var woodg := int(ceil(float(rest) / 2.0))
+		var earthg := rest - woodg
+
+		var want := {
+			"water": water, "farm": farmers, "craft": crafters,
+			"gather_wood": woodg, "gather_earth": earthg,
+		}
+		# 人类不够时按重要性往回削：先砍采木，再砍做工，再砍耕作，最后保治水
+		var need := 0
+		for k in want:
+			need += int(want[k])
+		for j in ["gather_wood", "gather_earth", "craft", "farm"]:
+			while need > pop and int(want[j]) > 0:
+				want[j] = int(want[j]) - 1
+				need -= 1
+		while need > pop and int(want["water"]) > 1:
+			want["water"] = int(want["water"]) - 1
+			need -= 1
+
+		for j in ["water", "gather_wood", "gather_earth", "craft", "farm", "guard", "idle"]:
+			var cur: int = s.job_count(j)
+			var tgt := int(want.get(j, 0))
+			if tgt > cur:
+				s.assign_job(j, tgt - cur)
+			elif tgt < cur:
+				s.assign_job(j, tgt - cur)
+
+		if s.construction_idle() and bool(s.dig_info()["ok"]):
+			s.start_dig()
+		s.advance_day()
+
+		var food := float(s.query("resources.food.grain")) \
+			+ float(s.query("resources.food.naan")) \
+			+ float(s.query("resources.food.meat"))
+		if day == 1 or day % 10 == 0:
+			print("    第%2d天  段%d  水%3.0f  粮%3.0f  木%3.0f  土%3.0f  具%2.0f  人%d" % [
+				day, int(s.query("karez.sections")), float(s.query("resources.water.current")),
+				food, float(s.query("resources.materials.wood")),
+				float(s.query("resources.materials.earth")), tools_now, pop])
+		if int(s.query("population")) <= 0:
+			dead_day = day
+			break
+
+	_eq(dead_day, -1, "60 天内没有团灭")
+	_ok(int(s.query("karez.sections")) >= 3,
+		"自动模拟能挖通至少 3 段竖井（实际 %d 段）" % int(s.query("karez.sections")))
 
 
 func _test_save_roundtrip() -> void:
