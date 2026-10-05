@@ -34,28 +34,28 @@ const SKIN := {
 ##   巴扎(19,15.5)(21,15.5) 驿馆(26,15) 马厩(31,15.5，lv>=3 才出现)
 ##   马匪头目放在绿洲之外的沙漠里 —— 他本来就不该在村里
 ##
-## ⚠ 两条硬约束：
+## ⚠ 三条硬约束：
 ##   1. y ≤ 16.4（=262px）：底栏从 y=268 开始，人会整个人被盖住
-##   2. **不能都排在同一条水平线上**。第一版六个人全在 y≈16，
-##      加上建筑和名牌，聚落那一条挤成一团（用户反馈「过于密集」）。
-##      现在改成沿「自己的地标」纵向错落：有人在营火北侧、有人在驿馆北侧、
-##      有人在马厩旁，相邻两人的横向间距也尽量拉开。
+##   2. **必须紧贴自己的地标**。上一版为了「散开」把人往上挪，
+##      结果掌柜离驿馆 2.6 格、骑手离马厩 2.9 格 —— 名字对不上地方了
+##      （用户反馈「人员都已经不在该地区了」）。散开要靠横向，不能靠纵向漂移。
+##   3. 同一行上相邻两人至少隔 5 格（80px），名牌宽 66px 才不会互相压住。
 const SPOT := {
-	"lao_kanjiang":      Vector2(23.6, 15.0),   # 井口旁（竖井链脚下）
-	"muqam_yiren":       Vector2(19.8, 13.6),   # 巴扎北侧
-	"hasake_qishou":     Vector2(31.0, 12.6),   # 马厩与晾房之间
-	"hanshang_zhanggui": Vector2(26.4, 12.4),   # 驿馆北侧
-	"chuniang":          Vector2(15.4, 13.8),   # 营火北侧
-	"shenmi_lvren":      Vector2(9.0, 13.4),    # 涝坝西北
+	"lao_kanjiang":      Vector2(23.0, 13.4),   # 竖井链旁 —— 他守着井，本来就不住村里
+	"muqam_yiren":       Vector2(21.5, 16.4),   # 巴扎摊位前（19,15.5)(21,15.5)
+	"hasake_qishou":     Vector2(31.5, 16.4),   # 马厩前（31,15.5）
+	"hanshang_zhanggui": Vector2(26.5, 16.4),   # 驿馆前（26,15）
+	"chuniang":          Vector2(16.5, 16.4),   # 营火前（17,15.5）
+	"shenmi_lvren":      Vector2(11.5, 16.4),   # 涝坝前（12,15）
 	"mafei_toumu":       Vector2(35.0, 6.0),    # 沙漠（村里不该有他）
 }
 
-## 名字牌的纵向偏移。**必须错开**，而且要错得够开：
-## 间距小于牌高(20px)时相邻两块会贴在一起。这里用 24px 的差。
+## 名字牌统一 -30：现在同一行相邻两人隔了 5 格，不会再撞，
+## 就不需要靠高度差错开了 —— 统一高度反而更像「名字贴在本人头上」。
 const LABEL_DY := {
-	"lao_kanjiang": -32.0, "muqam_yiren": -56.0, "hasake_qishou": -32.0,
-	"hanshang_zhanggui": -56.0, "chuniang": -32.0, "shenmi_lvren": -56.0,
-	"mafei_toumu": -32.0,
+	"lao_kanjiang": -30.0, "muqam_yiren": -30.0, "hasake_qishou": -30.0,
+	"hanshang_zhanggui": -30.0, "chuniang": -30.0, "shenmi_lvren": -30.0,
+	"mafei_toumu": -30.0,
 }
 
 const FACE_ROW := {"lao_kanjiang": 0, "muqam_yiren": 0, "hasake_qishou": 1,
