@@ -69,12 +69,18 @@ const SKINS := [
 ##   图标只有 16px、彼此不会连成带，而且一眼能认出是「镢头/斧子/锹/锤/麦子/刀」。
 ## 文字名（「治水 2」）仍然只在悬停时出现，和人物名字牌一致。
 const SITE_ICON := {
-	"water":        "res://tiles/props/tool_pickaxe_01.png",   # 挖竖井
-	"gather_wood":  "res://tiles/props/tool_axe_01.png",       # 伐木
-	"gather_earth": "res://tiles/props/tool_shovel_01.png",    # 取土
-	"craft":        "res://tiles/props/tool_hammer_01.png",    # 做工
-	"farm":         "res://tiles/farmland/crop_wheat.png",     # 耕作
-	"guard":        "res://tiles/props/item_sword_01.png",     # 守卫
+	# ⚠ 文件名是骗人的，别按名字猜：
+	#   tool_mallet_01.png   实际是 tiny-town #115 —— **一把镐**（治水要的正是它）
+	#   tool_pickaxe_01.png  实际是 tiny-farm #88 —— 一个问号/钩子形状，不是工具
+	# 这两个名字是当初 reextract 时按目视起的，起反了。
+	# 这次把六个图标逐个放大 11 倍核对过（_wip/_job_icons.png），
+	# 其余五个（斧/锹/锤/麦穗/剑）都对，只有治水这一张是错的。
+	"water":        "res://tiles/props/tool_mallet_01.png",   # 镐（挖竖井）
+	"gather_wood":  "res://tiles/props/tool_axe_01.png",       # 斧子（伐木）
+	"gather_earth": "res://tiles/props/tool_shovel_01.png",    # 铁锹（取土）
+	"craft":        "res://tiles/props/tool_hammer_01.png",    # 锤子（做工）
+	"farm":         "res://tiles/farmland/crop_wheat.png",     # 麦穗（耕作）
+	"guard":        "res://tiles/props/item_sword_01.png",     # 剑（守卫）
 }
 
 var _game: Node = null
