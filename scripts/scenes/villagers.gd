@@ -62,13 +62,31 @@ const SKINS := [
 	"res://characters/villager_walk.png",
 ]
 
+## 工作地点的**常驻图标** —— 让玩家一眼看出「这块地是干什么的」。
+##
+## 为什么用工具图标而不是文字：
+##   文字标签会连成一片、把地图压住（前面已经吃过这个亏）；
+##   图标只有 16px、彼此不会连成带，而且一眼能认出是「镢头/斧子/锹/锤/麦子/刀」。
+## 文字名（「治水 2」）仍然只在悬停时出现，和人物名字牌一致。
+const SITE_ICON := {
+	"water":        "res://tiles/props/tool_pickaxe_01.png",   # 挖竖井
+	"gather_wood":  "res://tiles/props/tool_axe_01.png",       # 伐木
+	"gather_earth": "res://tiles/props/tool_shovel_01.png",    # 取土
+	"craft":        "res://tiles/props/tool_hammer_01.png",    # 做工
+	"farm":         "res://tiles/farmland/crop_wheat.png",     # 耕作
+	"guard":        "res://tiles/props/item_sword_01.png",     # 守卫
+}
+
 var _game: Node = null
 var _map: Node2D = null
 ## [{sprite, job, target, facing, step, anim_t}]
 var _workers: Array = []
-## 岗位 -> Label（工作地点上方的人数）
+## 岗位 -> Label（工作地点上方的人数，悬停才显示）
 var _badges: Dictionary = {}
+## 岗位 -> Sprite2D（工作地点的常驻工具图标）
+var _icons: Dictionary = {}
 var _tex_cache := {}
+var _hover_job := ""
 
 
 func _ready() -> void:
@@ -83,6 +101,17 @@ func _ready() -> void:
 		lbl.visible = false
 		add_child(lbl)
 		_badges[jid] = lbl
+
+	# 工作地点的常驻图标（idle 没有，不需要）
+	for jid in ORDER:
+		if not SITE_ICON.has(jid):
+			continue
+		var ic := Sprite2D.new()
+		ic.texture = load(str(SITE_ICON[jid]))
+		ic.centered = true
+		ic.z_index = 5
+		add_child(ic)
+		_icons[jid] = ic
 
 
 func setup(game: Node, map: Node2D) -> void:
@@ -177,15 +206,22 @@ func _refresh_badges() -> void:
 	for jid in ORDER:
 		var n := int(_game.job_count(jid)) if _game != null else 0
 		var lbl: Label = _badges[jid]
+		var p := _workplace_pos(jid, 0)
+
+		# 常驻图标：不管有没有人在干活都摆着 —— 它就是「这块地是干什么的」的路牌。
+		# 稍微错开一点，免得和干活的人叠在一起。
+		if _icons.has(jid):
+			var ic: Sprite2D = _icons[jid]
+			ic.position = p + Vector2(0.0, -14.0)
+
 		if n <= 0 or jid != _hover_job:
 			lbl.visible = false
 			continue
 		lbl.text = "%s %d" % [JOB_CN.get(jid, jid), n]
-		var p := _workplace_pos(jid, 0)
 		lbl.visible = true
 		# 标签是 Control，这里手动摆位置；居中靠 size 估算
 		lbl.size = Vector2(80, 20)
-		lbl.position = Vector2(p.x - 40.0, p.y - 30.0)
+		lbl.position = Vector2(p.x - 40.0, p.y - 34.0)
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
