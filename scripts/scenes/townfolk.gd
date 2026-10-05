@@ -85,6 +85,11 @@ func setup(player: Node2D, game: Node) -> void:
 	for cid in Sites.NPC_HOME:
 		_make_person(str(cid))
 	set_process_unhandled_input(true)
+	# ⚠ 必须接上 state_changed —— 不然建筑拖动后 NPC 不会重摆。
+	# 我第一版写了 resync_positions() 却没接信号，结果建筑动了、居民动了，
+	# 只有 NPC 钉在原地（用户实机发现）。
+	if _game != null and not _game.state_changed.is_connected(resync_positions):
+		_game.state_changed.connect(resync_positions)
 
 
 ## 建筑被拖走后重摆站位 —— 位置从 game_state 推导，所以这里只要重新读一次。

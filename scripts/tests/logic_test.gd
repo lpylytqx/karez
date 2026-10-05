@@ -33,6 +33,7 @@ func _ready() -> void:
 	_test_memory()
 	_test_s3_loop()
 	_test_move_site()
+	_test_npc_sprite_follows()
 	_test_save_roundtrip()
 
 	print("=".repeat(64))
@@ -503,6 +504,39 @@ func _test_move_site() -> void:
 	s.move_site("inn", Vector2(30, 15))
 	_eq(s.load_from("user://_test_sites.json"), true, "读档成功")
 	_eq(s.site_xy("inn"), Vector2(14, 9), "移过的驿馆坐标被还原")
+
+
+## ⭐ 这条测的是「精灵真的被搬走了」，不是「坐标重算了一遍」。
+##
+## 上一版只测了 g.npc_xy()，而那是每次调用现算的，当然对；
+## 结果 townfolk 写了 resync_positions() 却没接到 state_changed 上，
+## 实机表现就是「建筑动了、居民动了，只有 NPC 钉在原地」——
+## 用户发现的。测试盲区在这里，所以补上这条。
+func _test_npc_sprite_follows() -> void:
+	_section("拖动建筑后：NPC 精灵真的会重摆")
+
+	var g: Node = load("res://core/game_state.gd").new()
+	add_child(g)
+	var tf: Node2D = load("res://scenes/townfolk.gd").new()
+	add_child(tf)
+	tf.setup(null, g)
+
+	var zhang: Sprite2D = null
+	for f in tf._folk:
+		if str(f["id"]) == "hanshang_zhanggui":
+			zhang = f["sprite"]
+	_ok(zhang != null, "找得到掌柜的精灵")
+	if zhang == null:
+		return
+	_ok(zhang.position.x > 300.0, "掌柜原本在右半边（%.1f）" % zhang.position.x)
+	_ok(g.state_changed.is_connected(tf.resync_positions),
+		"townfolk 已接上 state_changed（这就是上一版漏掉的那根线）")
+
+	# 把驿馆拖到左边
+	g.move_site("inn", Vector2(10, 8))
+
+	_ok(zhang.position.x < 200.0,
+		"掌柜的精灵被搬到了左半边（%.1f）—— 说明他真的跟着走" % zhang.position.x)
 
 
 func _test_save_roundtrip() -> void:
