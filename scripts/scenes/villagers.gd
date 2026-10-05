@@ -240,8 +240,6 @@ func _hover_workplace() -> String:
 	return ""
 
 
-var _hover_job := ""
-
 func _process(delta: float) -> void:
 	# 悬停判定也要每帧跑（人数标签靠它显隐）
 	var hj := _hover_workplace()
