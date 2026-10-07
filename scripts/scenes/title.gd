@@ -1,11 +1,11 @@
 extends Control
-## 标题画面：启动先看到封面，按任意键进游戏。
+## 标题画面：启动先看到封面，**按 Enter 键**进游戏。
 ##
 ## 为什么补这个：原来 `main_scene` 直接指向 play.tscn —— 双击就掉进游戏里，
 ## 玩家没有"这是哪款游戏"的第一眼。展示和评审时这一眼很重要。
 ##
 ## 坐标全按 640x360 逻辑空间（与游戏其余部分一致），封面按 contain 铺满。
-## 按任意键 / 点鼠标 → 切到 play.tscn。
+## 只有 Enter 能进 —— 鼠标与手柄按钮都不放行（录视频时误碰会跳走）。
 
 const PLAY_SCENE := "res://scenes/play.tscn"
 ## ⚠ 注意：res://ui/ 是 **HUD 脚本目录**，不是 assets/ui ——
@@ -39,7 +39,7 @@ func _ready() -> void:
 	add_child(shade)
 
 	_hint = Label.new()
-	_hint.text = "按任意键开始"
+	_hint.text = "按 Enter 键开始"
 	_hint.add_theme_font_size_override("font_size", 15)
 	_hint.add_theme_color_override("font_color", Color(0.95, 0.90, 0.80))
 	_hint.add_theme_color_override("font_shadow_color", Color(0.08, 0.06, 0.04))
@@ -73,14 +73,15 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _started:
 		return
-	var go := false
-	if event is InputEventKey and event.pressed and not event.echo:
-		go = true
-	elif event is InputEventMouseButton and event.pressed:
-		go = true
-	elif event is InputEventJoypadButton and event.pressed:
-		go = true
-	if not go:
+	# ⚠ **只认 Enter**（主键盘与小键盘的回车都收），鼠标与手柄按钮不放行。
+	#   原来这里是「任意键 / 点鼠标 / 手柄按钮都进游戏」——
+	#   录演示视频时鼠标一动、误碰一个键就跳走了，只能重来。
+	#   文案与实现必须一致：屏幕上写「按 Enter 键开始」，那就只有 Enter 能用。
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	# ⚠ event.keycode 是 Variant，写 := 会解析报错
+	var k: int = event.keycode
+	if k != KEY_ENTER and k != KEY_KP_ENTER:
 		return
 	_started = true
 	get_tree().change_scene_to_file(PLAY_SCENE)
