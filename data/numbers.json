@@ -363,6 +363,24 @@
         ]
       },
       {
+        "id": "yangjuan",
+        "display": "畜栏",
+        "labor": 20,
+        "materials": {
+          "wood": 16,
+          "earth": 6
+        },
+        "days": 1,
+        "effect": {
+          "livestock_capacity": 10
+        },
+        "upkeep_labor_per_day": 0,
+        "note": "圈住牲畜的地方。**便宜、一天就好、专门用来扩存栏**；马厩更贵也更慢，但多给 trade_range。存栏到顶就不再繁殖，所以想扩群就得先盖栏。",
+        "unlocks": [
+          "畜牧扩群"
+        ]
+      },
+      {
         "id": "cangku",
         "display": "仓库",
         "labor": 35,
@@ -427,7 +445,7 @@
         },
         "days": 2,
         "effect": {
-          "craft_efficiency": 1.0
+          "craft_efficiency": 1.2
         },
         "upkeep_labor_per_day": 1,
         "unlocks": [
@@ -656,7 +674,14 @@
         "value_hint": "主粮，耐储"
       }
     },
-    "water_shortage_rule": "若当日可用水 < 全部田块需求，按缺口比例均匀减产（不优先牺牲某块田），缺口 > 60% 时作物有 50% 概率枯死"
+    "water_shortage_rule": "若当日可用水 < 全部田块需求，按缺口比例均匀减产（不优先牺牲某块田），缺口 > 60% 时作物有 50% 概率枯死",
+    "cotton": {
+      "display": "棉花",
+      "season_yield": {
+        "autumn": 2.0
+      },
+      "note": "每名农夫在秋季额外收 2 单位棉花。产在秋天是因为新疆棉花就是秋收。"
+    }
   },
   "exploration": {
     "note": "派遣队伍沿丝路古道开图。距离越远风险越高、回报越好。",
@@ -1351,7 +1376,9 @@
       "wood": 1.5,
       "earth": 0.6,
       "tools": 8.0,
-      "salt": 3.0
+      "salt": 3.0,
+      "felt": 9.0,
+      "wool": 2.2
     },
     "price_modifiers": {
       "season": {
@@ -1397,6 +1424,654 @@
       "水平衡经两轮修正：初版 60/0 只有 3.3 天（太紧，无容错）；二版残流 18 导致净消耗为 0（水永不枯竭，紧迫感消失）。现为 90/5 → 6.9 天。待 S2 实测：玩家是否会稳定在第 5-7 天完成第一段？如果普遍做不到，说明教学引导不足而非数值问题。",
       "繁荣度 rank 3 需要 260，按建筑表估算需约 8-10 栋建筑，是否与人口 45 的成长速度匹配？待 S3 实测。",
       "战斗数值刻意做小，但 morale 对伤害的加成 (1 + morale/200) 在 75 士气时是 +37.5%，可能过强，待实测。"
+    ]
+  },
+  "battle": {
+    "display": "御敌之战",
+    "note": "战斗数值。原先硬编码在 battle.gd 里，搬出来让平衡可调而不用改代码。",
+    "step_seconds": 0.62,
+    "move_per_step": 11.0,
+    "attack_range": 20.0,
+    "enemy_deploy_seconds": 1.6,
+    "fighter": {
+      "display": "村勇",
+      "hp": 3.0,
+      "attack": 3.0
+    },
+    "raider": {
+      "display": "马匪",
+      "hp": 5.5,
+      "attack": 3.4,
+      "range": 20.0,
+      "speed": 11.0,
+      "note": "血 2.4→5.5、攻 2.4→3.4。原来的数值下村勇一击必杀马匪（伤害下限 2.4 ≥ 马匪血量 2.4），谁当什么兵都一样、布阵毫无意义。改成需要两下才打死，兵种和站位才看得出来。"
+    },
+    "reward": {
+      "loot_base": 6.0,
+      "loot_per_enemy": 3.0,
+      "morale_win": 6.0,
+      "security_win": 8.0,
+      "morale_lose": -12.0,
+      "security_lose": -15.0,
+      "food_plunder_ratio": 0.3
+    },
+    "troops": {
+      "display": "兵种",
+      "note": "兵种由居民**原本的岗位**决定 —— 分工这条主线延伸到战场上：你派谁去守、谁去采、谁去种，决定你手上有什么兵。",
+      "by_job": {
+        "guard": "shield",
+        "gather_wood": "archer",
+        "gather_earth": "archer",
+        "farm": "militia",
+        "craft": "militia",
+        "water": "militia",
+        "trade": "militia",
+        "idle": "levy"
+      },
+      "list": {
+        "shield": {
+          "display": "盾卫",
+          "hp": 7.0,
+          "attack": 2.2,
+          "range": 20.0,
+          "speed": 9.0,
+          "tint": [
+            0.78,
+            0.88,
+            1.12
+          ],
+          "desc": "血厚、攻击低。放到最前面替后排队友挨打 —— 他不站前面，弓手就没法安心输出。"
+        },
+        "archer": {
+          "display": "弓手",
+          "hp": 3.6,
+          "attack": 3.2,
+          "range": 52.0,
+          "speed": 10.0,
+          "tint": [
+            0.84,
+            1.06,
+            0.78
+          ],
+          "desc": "射程 52（近战只有 20），能隔着队友先手输出三轮；但血薄，被近身很快就没。"
+        },
+        "militia": {
+          "display": "乡勇",
+          "hp": 5.0,
+          "attack": 2.8,
+          "range": 20.0,
+          "speed": 11.0,
+          "tint": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "desc": "中庸主力，哪里缺顶哪里。"
+        },
+        "levy": {
+          "display": "平民",
+          "hp": 3.0,
+          "attack": 2.0,
+          "range": 20.0,
+          "speed": 12.0,
+          "tint": [
+            1.0,
+            0.92,
+            0.78
+          ],
+          "desc": "待命的人临时拉来的壮丁，最弱。别指望他们。"
+        }
+      }
+    },
+    "raid": {
+      "display": "来袭人数",
+      "note": "来犯人数跟随**能上阵的人数**，再加天数增长。原来的公式是 2 + 天数/8，第 1 天固定 2 人 —— 5 打 2 是碾压，兵种和阵型全都看不出来（实测连打三场都是 0 阵亡）。",
+      "offset": -1,
+      "per_days": 8,
+      "clamp_min": 2,
+      "clamp_max": 8
+    },
+    "max_enemies": 8
+  },
+  "livestock": {
+    "display": "畜牧",
+    "note": "牲畜不是凭空来的：要派人去草原抓野畜、或等商队贩卖。每头每天吃草料，按畜种产出（毛/奶/蛋/皮），养够天数会自己繁殖。牧人照看才有全额产出——没人管时产出减半、繁殖停止。灾难会成批冻死、病死它们，这是'过冬'压力线的一部分。",
+    "base_capacity": 6,
+    "capacity_note": "基础 6 头；马厩 +15，羊圈/畜栏另有加成。超出上限时不再繁殖。",
+    "feed_per_head_per_day": 0.5,
+    "feed_name": "草料",
+    "untended_output_multiplier": 0.5,
+    "max_per_species": 40,
+    "species": {
+      "sheep": {
+        "display": "阿勒泰细毛羊",
+        "short": "羊",
+        "value": 9.0,
+        "feed": 1.0,
+        "breed_days": 7,
+        "breed_chance": 0.45,
+        "products": {
+          "wool": 0.55,
+          "milk": 0.25
+        },
+        "slaughter": {
+          "meat": 6.0
+        },
+        "cold_hardiness": 0.75,
+        "desc": "新疆细毛羊。毛是织地毯、擀毡子的原料，奶能喝，肉能宰——一头羊就是一个会走路的小仓库。"
+      },
+      "goat": {
+        "display": "绒山羊",
+        "short": "山羊",
+        "value": 7.0,
+        "feed": 0.7,
+        "breed_days": 6,
+        "breed_chance": 0.55,
+        "products": {
+          "wool": 0.35,
+          "milk": 0.45
+        },
+        "slaughter": {
+          "meat": 5.0
+        },
+        "cold_hardiness": 0.9,
+        "desc": "绒山羊。耐旱耐粗饲，坡上石缝里的草它都吃得到；山羊绒是值钱货。"
+      },
+      "camel": {
+        "display": "双峰驼",
+        "short": "驼",
+        "value": 30.0,
+        "feed": 1.6,
+        "breed_days": 16,
+        "breed_chance": 0.2,
+        "products": {
+          "wool": 0.3,
+          "milk": 0.6
+        },
+        "slaughter": {
+          "meat": 14.0
+        },
+        "cold_hardiness": 0.95,
+        "desc": "双峰驼。驮货走远路的本事没有别的牲口能替；驼奶、驼绒都是稀罕物，养得慢。"
+      },
+      "donkey": {
+        "display": "库车驴",
+        "short": "驴",
+        "value": 14.0,
+        "feed": 1.1,
+        "breed_days": 12,
+        "breed_chance": 0.3,
+        "products": {},
+        "slaughter": {
+          "meat": 8.0
+        },
+        "labor": 0.5,
+        "cold_hardiness": 0.85,
+        "desc": "库车驴。个头小、脾气犟，但驮土运木离不了它——一头驴抵半个劳力。"
+      },
+      "chicken": {
+        "display": "吐鲁番鸡",
+        "short": "鸡",
+        "value": 3.0,
+        "feed": 0.2,
+        "breed_days": 4,
+        "breed_chance": 0.7,
+        "products": {
+          "egg": 0.8
+        },
+        "slaughter": {
+          "meat": 2.0
+        },
+        "cold_hardiness": 0.5,
+        "desc": "吐鲁番鸡。吃剩饭、下蛋快、繁殖也快，是最便宜的肉蛋来源；一场寒潮就能冻没一半。"
+      }
+    },
+    "jobs": {
+      "herd": {
+        "display": "放牧",
+        "output": "照看牲畜，决定产出与繁殖是否满额",
+        "per_herder_capacity": 8,
+        "note": "1 个牧人照看 8 头；人手不足时超出的部分按'没人管'算（产出减半、不繁殖）。"
+      }
+    },
+    "catch": {
+      "display": "派人抓野畜",
+      "labor_per_head": 2.0,
+      "days": 1,
+      "base_chance": 0.42,
+      "tools_bonus": 0.06,
+      "danger_display": "轻",
+      "note": "派人去草原牧场抓野畜：耗人力与干粮，成功率和队伍规模、工具、以及你去过几次有关。抓回来的是活畜，直接进栏。失败不扣人，只白费一趟人工——这是刻意的：失败要疼，但不该劝退。"
+    },
+    "wild": {
+      "argali": {
+        "display": "盘羊",
+        "to": "sheep",
+        "difficulty": 1.0,
+        "count": [
+          1,
+          2
+        ],
+        "desc": "天山盘羊。犄角盘成一圈，耐寒耐走，抓回来就是好种羊。"
+      },
+      "goitered": {
+        "display": "鹅喉羚",
+        "to": "goat",
+        "difficulty": 0.85,
+        "count": [
+          1,
+          2
+        ],
+        "desc": "鹅喉羚。跑得极快，得下套子；抓到的多是幼羚，好驯。"
+      },
+      "wild_ass": {
+        "display": "蒙古野驴",
+        "to": "donkey",
+        "difficulty": 1.15,
+        "count": [
+          1,
+          1
+        ],
+        "desc": "蒙古野驴。倔，得围住耗它体力才套得上。"
+      },
+      "wild_camel": {
+        "display": "野驼",
+        "to": "camel",
+        "difficulty": 1.6,
+        "count": [
+          1,
+          1
+        ],
+        "desc": "野驼。极难近身，抓一头够吹一年——但多半是白跑一趟。"
+      }
+    },
+    "products": {
+      "wool": {
+        "display": "羊毛",
+        "unit": "斤",
+        "base_price": 2.2,
+        "note": "擀毡、织毯、卖钱。加工作坊可增值。"
+      },
+      "egg": {
+        "display": "禽蛋",
+        "unit": "枚",
+        "base_price": 0.8
+      },
+      "milk": {
+        "display": "奶",
+        "unit": "碗",
+        "base_price": 1.4
+      }
+    },
+    "winter_note": "冬季草料消耗 +30%（牲畜要靠膘过冬，吃不饱就掉膘、冻死）。",
+    "winter_feed_multiplier": 1.3
+  },
+  "disasters": {
+    "display": "灾难",
+    "note": "每一种灾难都有明确的触发条件（季节 / 水位 / 人口密度 / 建筑），所以它不是「随机捣乱」，而是可以被预判、被准备的。玩家能用建筑（烽燧预警、仓库储粮、围墙挡沙、驿馆与居所隔离疫病）和各种储备把损失压下去——这是把'过冬'这条压力线具体化。",
+    "enabled": true,
+    "roll": {
+      "per_day": true,
+      "note": "每天结算时按季节筛出候选、各自掷骰；同时最多只会有一种灾难在发作。",
+      "cooldown_days": 5,
+      "cooldown_note": "刚遭过灾之后至少 5 天不会再遭，避免连续打击把玩家打死。"
+    },
+    "list": [
+      {
+        "id": "sandstorm",
+        "display": "沙暴",
+        "seasons": [
+          "spring",
+          "summer"
+        ],
+        "base_chance": 0.17,
+        "warn_building": "fengsui",
+        "warn_text": "烽燧报信",
+        "screen": "sand",
+        "log_color": "#e8c07a",
+        "effects": {
+          "water_loss": 10.0,
+          "morale": -5.0,
+          "livestock_loss": 0.1,
+          "building_wear": 6.0
+        },
+        "mitigation": {
+          "fengsui": 0.5
+        },
+        "desc": "黄风压过来，天变成土色。井口要先盖毡子，羊群要赶回圈——没准备的，人和牲口一起遭罪。"
+      },
+      {
+        "id": "drought",
+        "display": "大旱",
+        "seasons": [
+          "summer"
+        ],
+        "base_chance": 0.15,
+        "warn_building": "fengsui",
+        "warn_text": "老人看云色不对",
+        "screen": "heat",
+        "log_color": "#e8a35a",
+        "duration_days": 6,
+        "flow_multiplier": 0.45,
+        "effects": {
+          "morale": -4.0,
+          "farm_yield_mult": 0.6
+        },
+        "mitigation": {},
+        "desc": "整月不见雨，坎儿井的出水量往下掉。这时候涝坝里存的那点水就是命。"
+      },
+      {
+        "id": "flood",
+        "display": "融雪洪水",
+        "seasons": [
+          "spring"
+        ],
+        "base_chance": 0.12,
+        "warn_building": "weijiang",
+        "warn_text": "围墙拦得住",
+        "screen": "water",
+        "log_color": "#7fc4e8",
+        "effects": {
+          "water_gain": 45.0,
+          "farm_destroy": 0.45,
+          "building_wear": 10.0,
+          "morale": -3.0
+        },
+        "mitigation": {
+          "weijiang": 0.35
+        },
+        "desc": "天山雪水一天之内全下来。水一下子多了，可它冲的是你的地——渠和墙都得顶住。"
+      },
+      {
+        "id": "cold_snap",
+        "display": "寒潮",
+        "seasons": [
+          "winter",
+          "autumn"
+        ],
+        "base_chance": 0.22,
+        "warn_building": "cangku",
+        "warn_text": "仓库里有存粮",
+        "screen": "cold",
+        "log_color": "#a8d0ff",
+        "effects": {
+          "livestock_loss": 0.3,
+          "morale": -6.0,
+          "food_loss": 12.0,
+          "population_loss_chance": 0.18
+        },
+        "mitigation": {
+          "cangku": 0.3
+        },
+        "desc": "一夜之间河面封冻。牲畜掉膘、幼畜先倒，柴和粮不够的人家最难熬。"
+      },
+      {
+        "id": "plague",
+        "display": "瘟疫",
+        "seasons": [
+          "spring",
+          "summer",
+          "autumn",
+          "winter"
+        ],
+        "base_chance": 0.08,
+        "warn_building": "yiguan",
+        "warn_text": "驿馆能隔离",
+        "screen": "sick",
+        "log_color": "#b8d8a0",
+        "effects": {
+          "population_loss_chance": 0.35,
+          "livestock_loss": 0.18,
+          "morale": -8.0
+        },
+        "mitigation": {
+          "yiguan": 0.4,
+          "juzhu": 0.25
+        },
+        "desc": "先是一个人拉肚子，第二天一圈人躺下。人畜都会传——这时候最不该做的就是聚在一起。"
+      },
+      {
+        "id": "locust",
+        "display": "蝗灾",
+        "seasons": [
+          "summer",
+          "autumn"
+        ],
+        "base_chance": 0.12,
+        "warn_building": "chicken_note",
+        "warn_text": "鸡群能吃掉一片",
+        "screen": "locust",
+        "log_color": "#d8c46a",
+        "effects": {
+          "farm_destroy": 0.65,
+          "morale": -5.0
+        },
+        "mitigation": {},
+        "desc": "天边一片沙沙响的云。蝗虫过处只剩秆子——放鸡进去能救回一小片，但救不了全部。"
+      }
+    ]
+  },
+  "crafts": {
+    "display": "加工",
+    "note": "把原料变成值钱的成品。**作坊（zuofang）是总门槛** —— 没有作坊就只能卖原料，价格差好几倍。晾房单独管葡萄干（它有专门的 fruit_to_raisin_rate）。每条配方每天最多跑一次，原料不够就跳过（不会扣一半）。",
+    "recipes": [
+      {
+        "id": "raisin",
+        "display": "晾葡萄干",
+        "building": "liangfang",
+        "input": {
+          "fruit": 4
+        },
+        "output": {
+          "raisin": 1
+        },
+        "note": "瓜果 4 → 葡萄干 1。保质期 8 天 → 120 天，是过冬的关键。"
+      },
+      {
+        "id": "felt",
+        "display": "擀毡子",
+        "building": "zuofang",
+        "input": {
+          "wool": 3
+        },
+        "output": {
+          "felt": 1
+        },
+        "note": "羊毛 3 → 毡子 1。这是养羊**真正换钱**的那一步。"
+      },
+      {
+        "id": "rug",
+        "display": "织地毯",
+        "building": "zuofang",
+        "input": {
+          "wool": 6,
+          "cloth": 2
+        },
+        "output": {
+          "rug": 1
+        },
+        "note": "地毯是这里最值钱的手工，工期长、要的料也多。"
+      },
+      {
+        "id": "instrument",
+        "display": "做热瓦普",
+        "building": "zuofang",
+        "input": {
+          "wood": 6,
+          "tools": 1
+        },
+        "output": {
+          "instrument": 1
+        },
+        "note": "木料 6 + 工具 1 → 热瓦普 1。商队最认这个 —— 一把顶十几袋粮。"
+      },
+      {
+        "id": "silk",
+        "display": "织艾德莱斯绸",
+        "building": "zuofang",
+        "input": {
+          "cotton": 4
+        },
+        "output": {
+          "silk": 1
+        },
+        "note": "棉花 4 → 绸 1。艾德莱斯绸是扎经染色织出来的，本地最拿得出手的织物。"
+      }
+    ],
+    "felt": {
+      "display": "毡子",
+      "unit": "张",
+      "base_price": 9.0,
+      "note": "擀毡是游牧的老手艺。毡子铺炕、搭毡房、卖给商队都行。"
+    },
+    "goods": {
+      "raisin": {
+        "display": "葡萄干",
+        "note": "晾房出品，能放到明年。"
+      },
+      "felt": {
+        "display": "毡子",
+        "note": "擀出来的，铺炕搭帐篷都行。"
+      },
+      "rug": {
+        "display": "地毯",
+        "note": "本地最值钱的手工。"
+      },
+      "instrument": {
+        "display": "热瓦普",
+        "note": "商队最认的货，一把顶十几袋粮。"
+      },
+      "silk": {
+        "display": "艾德莱斯绸",
+        "note": "商队出高价收。"
+      },
+      "cotton": {
+        "display": "棉花",
+        "note": "秋天收，织绸用。"
+      }
+    }
+  },
+  "festivals": {
+    "display": "节庆",
+    "note": "全是真实的新疆节庆，用来给一年定几个「喘口气、也露个脸」的节点。触发方式是季 + 天固定（游戏里可预期才好玩）。⚠ 古尔邦节在现实中按伊斯兰历浮动，这里为玩法固定到秋季第 40 天，   不假装精确 —— 要的是「一年里有几个值得记住的日子」。  ⚠ day 是**季内第几天**（1..30），写成 40 这种超界值不会报错，但那个节日永远不会触发 —— verify 里有一条静态自检守着它。",
+    "list": [
+      {
+        "id": "noruz",
+        "display": "诺鲁孜节",
+        "season": "spring",
+        "day": 3,
+        "effects": {
+          "morale": 12.0,
+          "reputation": 4.0
+        },
+        "text": "春分。熬一锅诺鲁孜粥，邻里互相走动，新的一年从这天算起。"
+      },
+      {
+        "id": "grape",
+        "display": "葡萄熟了",
+        "season": "autumn",
+        "day": 12,
+        "effects": {
+          "morale": 8.0,
+          "silver": 6.0
+        },
+        "text": "葡萄下架、晾房上架。全村一起干活，晚上在奏乐台上跳起舞来。"
+      },
+      {
+        "id": "qurban",
+        "display": "古尔邦节",
+        "season": "autumn",
+        "day": 25,
+        "effects": {
+          "morale": 15.0,
+          "reputation": 6.0
+        },
+        "text": "宰牲待客。家里有牲口的这天最体面 —— 养牲畜的回报不只是钱。",
+        "bonus_if_livestock": {
+          "min": 5,
+          "reputation": 4.0,
+          "text": "院里牲口多，来的人也多。"
+        },
+        "note": "原写 day=40，但每季只有 30 天，永远触发不了；改成 25。"
+      }
+    ]
+  },
+  "music": {
+    "display": "木卡姆",
+    "note": "十二木卡姆是真实的新疆古典套曲。这里取**前六套**作为可演奏曲目 —— 不假装十二套都做了。办一场的条件：奏乐台在场、木卡姆艺人在场、库里有 1 把热瓦普（不消耗）。于是 木料 → 作坊做热瓦普 → 奏乐台办木卡姆 是一条完整的链，而不是又一个「点一下加士气」的按钮。",
+    "performance": {
+      "action_points": 2,
+      "labor": 1,
+      "cooldown_days": 3,
+      "requires_building": "yinletai",
+      "requires_npc": "muqam_yiren",
+      "needs_item": {
+        "instrument": 1
+      },
+      "note": "热瓦普只是要在库里（不消耗）—— 用完就断弦要重做的话，玩家会不敢办。",
+      "requires_npc_display": "木卡姆艺人"
+    },
+    "suites": [
+      {
+        "id": "rak",
+        "display": "拉克",
+        "mood": "庄重开场",
+        "effects": {
+          "morale": 10.0,
+          "reputation": 3.0
+        },
+        "text": "拉克是十二木卡姆的第一套，起手庄重。"
+      },
+      {
+        "id": "chebiyat",
+        "display": "且比亚特",
+        "mood": "热烈",
+        "effects": {
+          "morale": 12.0,
+          "reputation": 2.0
+        },
+        "text": "且比亚特热闹，商队最爱听这一套。"
+      },
+      {
+        "id": "mushavrak",
+        "display": "木夏吾莱克",
+        "mood": "抒情",
+        "effects": {
+          "morale": 14.0,
+          "reputation": 2.0
+        },
+        "text": "木夏吾莱克慢，适合夜里点着灯听。"
+      },
+      {
+        "id": "chargah",
+        "display": "恰尔尕",
+        "mood": "明快",
+        "effects": {
+          "morale": 11.0,
+          "reputation": 4.0
+        },
+        "text": "恰尔尕节奏明快，孩子也跟着拍手。"
+      },
+      {
+        "id": "panjigah",
+        "display": "潘吉尕",
+        "mood": "开阔",
+        "effects": {
+          "morale": 13.0,
+          "reputation": 3.0
+        },
+        "text": "潘吉尕开阔，像站在戈壁上往远处看。"
+      },
+      {
+        "id": "uzhal",
+        "display": "乌孜哈勒",
+        "mood": "苍凉",
+        "effects": {
+          "morale": 16.0,
+          "reputation": 2.0
+        },
+        "text": "乌孜哈勒苍凉。遭过灾的年份，村里人偏爱听这一套。"
+      }
     ]
   }
 }

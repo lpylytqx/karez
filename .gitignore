@@ -85,8 +85,14 @@ scripts/characters/
 scripts/fonts/
 scripts/fx/
 scripts/tiles/
+scripts/events/
 scripts/ui/*.png
 scripts/ui/*.import
+
+# ---- AI 生图的中间产物 ----
+# 生图工具的工作目录。原图已另存到 assets/_wip/_event_art_source/（_wip 已忽略），
+# 最终裁切好的成品在 assets/events/（那个要入库）。
+dsh-image-gen/
 
 # ---- 字体分发包与临时产物 ----
 *.zip

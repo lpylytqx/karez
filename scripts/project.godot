@@ -7,7 +7,7 @@ config_version=5
 
 config/name="坎儿井"
 config/description="AI 原生 2D 丝路经营游戏 —— S2 治水核心可玩版"
-run/main_scene="res://scenes/play.tscn"
+run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 config/windows_native_icon=""

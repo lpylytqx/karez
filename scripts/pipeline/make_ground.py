@@ -83,10 +83,18 @@ def _ripple(img: Image.Image, color: str, rng: random.Random, rows: int) -> None
 # (文件名, 基色, 细点色, 细点数, 波浪行数)
 GROUND: list[tuple[str, str, list[str], int, int]] = [
     # 沙地
-    ("sand_base_01.png", SAND_LIGHT, [SAND_MID, SAND_DARK], 7, 0),
-    ("sand_base_02.png", SAND_LIGHT, [SAND_MID, SAND_DEEP], 11, 0),
-    ("sand_base_03.png", SAND_MID, [SAND_DARK, SAND_DEEP], 9, 1),
-    ("sand_ripple_01.png", SAND_LIGHT, [SAND_MID], 5, 2),
+    # ⚠ 五张**必须同基色**（都用 SAND_LIGHT）。原来 sand_base_03 用的 SAND_MID，
+    #   比其余几张系统性地暗一档 —— 平铺 880 次后，这一档色差就变成沙地上一块块
+    #   等距的浅色/深色矩形，也就是「墙纸感」的来源（实机截图确认）。
+    #   变体之间的差别只应该来自**细点数量**，不能来自基色。
+    ("sand_base_01.png", SAND_LIGHT, [SAND_MID], 6, 0),
+    ("sand_base_02.png", SAND_LIGHT, [SAND_MID, SAND_DARK], 9, 0),
+    ("sand_base_03.png", SAND_LIGHT, [SAND_DEEP], 7, 0),
+    ("sand_base_04.png", SAND_LIGHT, [SAND_MID], 12, 0),
+    ("sand_base_05.png", SAND_LIGHT, [SAND_DARK], 8, 0),
+    # 带一道风纹的沙地。只作**地表点缀**用，不参与地形平铺 ——
+    # 它那道横向纹是「有特征」的，当地形底纹平铺会形成规律。
+    ("sand_ripple_01.png", SAND_LIGHT, [SAND_MID], 4, 1),
     # 稀疏草（干黄绿）
     ("grass_sparse_base_01.png", GRASS_DRY, [GRASS_MID, SAND_DARK], 8, 0),
     ("grass_sparse_base_02.png", GRASS_DRY, [GRASS_MID], 12, 0),
@@ -119,7 +127,7 @@ def main() -> int:
         img.save(OUT / name)
         print(f"  [OK] {name:<26} 用了 {len(used)} 色  全部合规")
 
-    print(f"\n  共生成 {len(GROUND)} 张（4 沙 + 6 草）")
+    print(f"\n  共生成 {len(GROUND)} 张（5 沙 + 1 风纹 + 6 草）")
     return 0
 
 

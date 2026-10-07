@@ -13,10 +13,33 @@ extends Node2D
 ##     所以间距必须按贴图实际尺寸算，不能一律按格子数
 
 signal shaft_pressed(index: int)
+## 鼠标移到一个地标上 / 移开。HUD 靠这两个信号显示与隐藏说明浮层。
+## 用信号而不是让地图直接画浮层：浮层属于界面，样式与字体都归 HUD 管，
+## 地图只负责回答「光标现在在哪个地标上」。
+signal site_hovered(site_id: String)
+## 点击了某个地标。play.gd 决定要不要响应（目前只有奏乐台有交互）。
+signal site_pressed(site_id: String)
+signal site_unhovered
 
 const TILE := 16
-const COLS := 40
-const ROWS := 22
+## 地图格数。56x32 = 896x512 px，面积是原来 40x22（640x352）的 2.0 倍。
+##
+## 为什么往**东、南**扩：聚落与坎儿井的全部坐标（sites.gd、SHAFT_POS、FIELD_*）
+## 都钉在现有的 x 2~36 / y 6~19 这一片。往北扩会被顶栏吃掉，
+## 往西扩会挪动所有既有坐标 —— 都是高风险改动。往东、南扩的话，
+## 新空间就是**空白沙漠**，旧内容一格都不用动。
+const COLS := 56
+const ROWS := 32
+
+## 绿洲中心（格）—— 聚落所在处。
+##
+## ⚠ 这里原来写的是 `Vector2(COLS / 2.0, ROWS / 2.0 + 1.0)`。
+##   在地图 40x22 时它恰好≈聚落中心（算出来 (20,12)，实际聚落中心 (19,12.5)），
+##   看着完全正常。但地图一扩到 56x32，同一个表达式立刻变成 (28,17) ——
+##   **绿洲会搬到空白沙漠上、和村子彻底分家**。这是典型的"巧合成立"：
+##   表达式恰好对，而不是因为它表达的是对的东西。
+##   地图尺寸和"村落在哪"本来就是两件事，不能用一个表达式绑在一起。
+const VILLAGE_CENTER := Vector2(19.0, 12.5)
 
 ## 段数 -> 绿洲半径（单位：格）。
 const OASIS_RADIUS := [3.2, 4.8, 6.2, 7.6, 9.0, 10.4, 11.8]
@@ -72,6 +95,14 @@ var _game: Node = null
 ## 可拖动建筑：id -> Sprite2D，以及正在拖的那个
 var _prop_nodes: Dictionary = {}
 var _draggable: Array = []
+## 所有**有贴图的地标**（含不可移动的涝坝/厨房/巴扎…）→ 精灵。
+## 与 _prop_nodes 的区别：那个只装可拖拽的（kind=="building"），
+## 而悬停说明要对每一个能看见的地标都生效 ——
+## 玩家会想去点涝坝和厨房看看它们是干什么的。
+var _site_nodes: Dictionary = {}
+## 当前光标停在地标哪个 id 上（空串 = 没停在任何地标上）。
+## 只在**变化时**发信号，否则鼠标每动一下都会刷一次 HUD。
+var _hover_id := ""
 var _drag_id := ""
 var _drag_off := Vector2.ZERO
 
@@ -95,7 +126,7 @@ func _ready() -> void:
 	add_child(_prop_root)
 	_shaft_root = Node2D.new()
 	_shaft_root.name = "Shafts"
-	_shaft_root.z_index = 5
+	_shaft_root.z_index = Z_SHAFT
 	add_child(_shaft_root)
 	refresh()
 
@@ -123,6 +154,26 @@ func setup(game: Node) -> void:
 func _pick_building(p: Vector2) -> String:
 	for id in _draggable:
 		var sp: Sprite2D = _prop_nodes.get(str(id), null)
+		if sp == null or not is_instance_valid(sp) or sp.texture == null:
+			continue
+		var half := Vector2(sp.texture.get_width(), sp.texture.get_height()) * 0.5
+		if Rect2(sp.position - half, half * 2.0).has_point(p):
+			return str(id)
+	return ""
+
+
+## 光标下是哪个地标（**含不可移动的**：涝坝/厨房/巴扎/晾房…）。
+##
+## 与 _pick_building 的区别：那个只认可拖拽的建筑，服务于拖拽；
+## 这个认全部有贴图的地标，服务于悬停说明。
+##
+## 倒序遍历：Dictionary 在 GDScript 里保持插入顺序，后画的在上层，
+## 建筑重叠时以视觉上压在上面的那个为准。
+func _pick_site(p: Vector2) -> String:
+	var ids: Array = _site_nodes.keys()
+	ids.reverse()
+	for id in ids:
+		var sp: Sprite2D = _site_nodes.get(id, null)
 		if sp == null or not is_instance_valid(sp) or sp.texture == null:
 			continue
 		var half := Vector2(sp.texture.get_width(), sp.texture.get_height()) * 0.5
@@ -179,6 +230,59 @@ func shaft_at(world_pos: Vector2) -> int:
 # 重建
 # ---------------------------------------------------------------------------
 
+## 每几只牲畜画一个精灵、最多画几个。**只是示意，不是逐头对应** ——
+## 20 只羊画 7 个就够读出"有羊群"了，画 20 个会挤成一团还挡路。
+const LIVESTOCK_PER_SPRITE := 3
+const LIVESTOCK_MAX_SPRITES := 8
+## 畜种 → 地图贴图。
+const LIVESTOCK_TEX := {
+	"sheep": "res://tiles/props/animal_sheep_01.png",
+	"goat": "res://tiles/props/animal_goat_01.png",
+	"camel": "res://tiles/props/animal_camel_01.png",
+	"donkey": "res://tiles/props/animal_donkey_01.png",
+	"chicken": "res://tiles/props/animal_chicken_01.png",
+}
+
+
+## 把存栏的牲畜画在马厩旁边。
+##
+## 为什么值得画：畜牧系统有数值、能在面板上读到，但**地图上完全看不见** ——
+## 玩家养了 20 头羊，村子里一头都看不到，"养了牲口"这件事只存在于数字里。
+## 这类"系统只在面板里存在"的缺口，玩家很难感觉到自己养的东西是活的。
+##
+## ⚠ 缺贴图的畜种自动跳过，不会画出空白格子：地图上宁可少画一种，
+##   也不能出现一个看不见的占位精灵（这个项目里"贴图与内容对不上"栽过 8 次）。
+func _place_livestock() -> void:
+	if _game == null or not _game.state.has("livestock"):
+		return
+	# 马厩在场就围着马厩散开；不在场退回营地西侧的空地
+	var home := Vector2(31.0, 15.5)
+	if not _game.place_present("stable"):
+		home = Vector2(24.5, 17.2)
+	var drawn := 0
+	var slot := 0
+	for sid in _game.LIVESTOCK_IDS:
+		if drawn >= LIVESTOCK_MAX_SPRITES:
+			break
+		var n: int = _game.livestock_of(sid)
+		if n <= 0:
+			continue
+		var tex := str(LIVESTOCK_TEX.get(sid, ""))
+		if tex == "":
+			continue
+		var want := maxi(1, int(ceil(float(n) / float(LIVESTOCK_PER_SPRITE))))
+		for k in range(want):
+			if drawn >= LIVESTOCK_MAX_SPRITES:
+				break
+			var col := slot % 4
+			var row := slot / 4
+			var gx := home.x - 1.3 + float(col) * 0.9
+			var gy := home.y + 1.0 + float(row) * 0.8
+			_add_prop(tex, gx, gy, Z_GROUND)
+			slot += 1
+			drawn += 1
+
+
 func refresh() -> void:
 	if _terrain_root == null:
 		return
@@ -189,6 +293,7 @@ func refresh() -> void:
 	_shaft_nodes.clear()
 	_build_terrain()
 	_place_props()
+	_place_livestock()
 	_scatter_ground()
 	_build_shafts()
 
@@ -204,8 +309,8 @@ func _terrain_key(d: float, r: float) -> String:
 
 
 func _build_terrain() -> void:
-	var cx := COLS / 2.0
-	var cy := ROWS / 2.0 + 1.0
+	var cx := VILLAGE_CENTER.x
+	var cy := VILLAGE_CENTER.y
 	var r := oasis_radius()
 
 	# 分两步：先把每格的地形类型算出来，再贴图。
@@ -303,12 +408,35 @@ func _prop_shadow(tex: Texture2D, pos: Vector2, z: int) -> void:
 	sh.centered = true
 	sh.position = pos + SHADOW_OFFSET
 	sh.modulate = SHADOW_COLOR
-	# 比本体低一层：不然影子会盖在自己的墙面上
-	sh.z_index = z - 1
+	# 影子固定在最底层（不跟着它的主人一起升高）：影子属于地面。
+	# ⚠ 早先写的是 z-1，一开始没问题，因为建筑就在最底层；
+	# 后来把建筑提到树的上面，影子就会被一起抬到树那一层、糊在树冠上。
+	sh.z_index = Z_SHADOW
 	_prop_root.add_child(sh)
 
 
-func _add_prop(path: String, gx: float, gy: float, z := 1) -> Sprite2D:
+## ── 图层顺序 ──
+##
+## ⚠ 这些常量是补出来的：在补之前，各处是**散着写数字**的，凑出了一个错的叠放 ——
+##     灌木花草 = 2，树 = 3，**建筑 = 1**
+##   建筑夹在最底下，于是一棵树或一丛灌木可以盖住屋顶。
+##   这不会报错、不会崩，只是「有些房子看着怪怪的」，翻截图很难注意到，
+##   是做旗子时排查图层才发现的。写清楚一次，以后加东西照着放。
+##
+## 正确的高度关系（越靠后越在上）：
+##     影子 < 贴地花草 < 树 < 建筑 < 竖井 < 特效 < 人物名牌
+const Z_SHADOW := 1
+const Z_GROUND := 2
+const Z_TREE := 3
+const Z_BUILDING := 4
+const Z_SHAFT := 5
+
+
+## 默认放**贴地层**，因为 _add_prop 不只画建筑 ——
+## 它还被农田、鸡、羊、木桶、篮子、向日葵、明渠共用。
+## 把默认值直接提到建筑层，会让鸡和木桶一起飘到树冠上面。
+## 建筑在调用处显式传 Z_BUILDING。
+func _add_prop(path: String, gx: float, gy: float, z := Z_GROUND) -> Sprite2D:
 	var sp := Sprite2D.new()
 	var tex := _get_tex(path)
 	sp.texture = tex
@@ -330,7 +458,7 @@ func _add_tree(path: String, gx: float, gy: float) -> void:
 	sp.centered = false
 	sp.position = Vector2(roundf(gx * TILE - tex.get_width() * 0.5),
 		roundf(gy * TILE - tex.get_height()))
-	sp.z_index = 3
+	sp.z_index = Z_TREE
 	_prop_root.add_child(sp)
 
 
@@ -342,7 +470,7 @@ func _add_ground(path: String, gx: float, gy: float) -> void:
 	sp.centered = false
 	sp.position = Vector2(roundf(gx * TILE - tex.get_width() * 0.5),
 		roundf(gy * TILE - tex.get_height() * 0.5))
-	sp.z_index = 2
+	sp.z_index = Z_GROUND
 	_prop_root.add_child(sp)
 
 
@@ -378,39 +506,53 @@ func _scatter_ground() -> void:
 	# 同一个种子、同一条调用顺序，重摆的结果就完全一致。
 	_rng.seed = 20261005
 
+	# ⚠ 池子里**只能放「带透明通道的道具」**，绝不能放地形块。
+	#
+	# 这里原来混着五张地形过渡块：gravel_01 / dirt_patch_01 / sand_ripple_01 /
+	# grass_flower_01 / grass_pebble_01。它们是 16x16 **整块不透明**的图，
+	# 用来拼地形交界的，被当成"散落的小物件"撒在地图上 ——
+	# 结果就是沙地里出现一张张绿方块。用户的原话：「沙漠里那些绿色方块」。
+	# 其中 grass_pebble_01 还带青蓝色石子（就是更早那次"草地上的青蓝故障块"）。
+	#
+	# 现在换成程序化生成的细枝细叶（见 make_scrub.py）：不透明占比 12%~39%，
+	# 沙漠用灰绿/枯黄（骆驼刺、梭梭、干草），绿洲用鲜一点的草叶。
 	var desert_pool := [
 		"res://tiles/props/rock_small_01.png",
 		"res://tiles/props/rock_pile_01.png",
-		"res://tiles/terrain/sand_ripple_01.png",
-		"res://tiles/terrain/gravel_01.png",
-		"res://tiles/terrain/dirt_patch_01.png",
+		"res://tiles/props/desert_thorn_01.png",
+		"res://tiles/props/desert_scrub_01.png",
+		"res://tiles/props/desert_dry_grass_01.png",
+		"res://tiles/props/desert_twig_01.png",
+		"res://tiles/props/pebble_01.png",
 	]
 	var oasis_pool := [
 		"res://tiles/props/herb_green_01.png",
 		"res://tiles/props/bush_berry_01.png",
-		"res://tiles/terrain/grass_flower_01.png",
-		"res://tiles/terrain/grass_pebble_01.png",
+		"res://tiles/props/grass_tuft_01.png",
+		"res://tiles/props/grass_tuft_02.png",
 		"res://tiles/props/mushroom_01.png",
+		"res://tiles/props/pebble_03.png",
 	]
-	# 四季：雪地里不该有花草蘑菇（一眼就假），只剩石头与砾石；
-	# 春天把草换成一丛丛花。
+	# 四季：雪地里不该有花草蘑菇（一眼就假），只剩石头与碎石；
+	# 春天把草换成一丛丛带花的。
 	match _season():
 		"winter":
 			oasis_pool = [
 				"res://tiles/props/rock_small_01.png",
-				"res://tiles/terrain/gravel_01.png",
+				"res://tiles/props/pebble_01.png",
+				"res://tiles/props/pebble_02.png",
 			]
 		"spring":
 			oasis_pool = [
-				"res://tiles/terrain/grass_flower_01.png",
-				"res://tiles/terrain/grass_flower_01.png",
+				"res://tiles/props/grass_tuft_02.png",
+				"res://tiles/props/grass_tuft_02.png",
 				"res://tiles/props/herb_green_01.png",
-				"res://tiles/terrain/grass_pebble_01.png",
+				"res://tiles/props/pebble_03.png",
 			]
 
 	var r := oasis_radius()
 	# 与 _build_terrain 用同一个绿洲中心，否则「哪算绿洲」两处会对不上
-	var c := Vector2(COLS / 2.0, ROWS / 2.0 + 1.0)
+	var c := VILLAGE_CENTER
 
 	var occupied: Array = []
 	for id in Sites.PLACES:
@@ -452,6 +594,12 @@ func _place_props() -> void:
 	# 这是自检时发现的（无界增长，功能不错但必须修）。
 	_draggable.clear()
 	_prop_nodes.clear()
+	_site_nodes.clear()
+	# 地图重建后，原来悬停的对象可能已经不存在了（例如建筑被挪走），
+	# 主动清一次并通知 HUD 收起浮层，免得浮层挂着一个已经不存在的建筑名。
+	if _hover_id != "":
+		_hover_id = ""
+		site_unhovered.emit()
 
 	var lv := 0
 	if _game != null:
@@ -471,13 +619,22 @@ func _place_props() -> void:
 		var kind := str(p.get("kind", ""))
 		if tex == "" or kind == "area":
 			continue
+		# ── 有 tex_levels 的地标按档位换贴图（目前只有涝坝：水位高低）──
+		# 档位数值由 game_state 给，地图**不自己算** —— 与 gate 遵循同一条原则：
+		# 判据只能有一处，否则又会变成"两处各写一套"。
+		if p.has("tex_levels") and _game != null:
+			var levels: Array = p["tex_levels"]
+			if not levels.is_empty():
+				var li := clampi(int(_game.reservoir_level()) - 1, 0, levels.size() - 1)
+				tex = str(levels[li])
 		# ⚠ 出现条件全部来自 sites.gd 的 gate，经 game_state.place_present() 判断。
 		# 这里**不再写 lv >= N 这类条件** —— 门槛只能有一处，
 		# 否则就是「两处各写一套」，正是前面坐标三张表反复出错的原因。
 		if _game != null and not _game.place_present(str(id)):
 			continue
 		var xy: Vector2 = _game.site_xy(id) if _game != null else p["xy"]
-		var sp := _add_prop("res://buildings/%s" % tex, xy.x, xy.y)
+		var sp := _add_prop("res://buildings/%s" % tex, xy.x, xy.y, Z_BUILDING)
+		_site_nodes[str(id)] = sp
 		# 可移动的建筑留个引用，供拖拽时改位置
 		if kind == "building":
 			_prop_nodes[id] = sp
@@ -508,7 +665,7 @@ func _place_props() -> void:
 		var line: Array = crop_lines[i % crop_lines.size()]
 		var t := float(i) / maxf(1.0, float(maxi(1, fields - 1)))
 		var stage := clampi(int(round(t * float(line.size() - 1))), 0, line.size() - 1)
-		_add_prop("res://tiles/farmland/%s.png" % str(line[stage]), g.x, g.y, 2)
+		_add_prop("res://tiles/farmland/%s.png" % str(line[stage]), g.x, g.y, Z_GROUND)
 
 	# ── 聚落里的活物与杂物：让画面不至于空得像布景 ──
 	if lv >= 1:
@@ -599,8 +756,8 @@ func _place_props() -> void:
 			shrub_chance = 0.8
 
 	var r := oasis_radius()
-	var cx := COLS / 2.0
-	var cy := ROWS / 2.0 + 1.0
+	var cx := VILLAGE_CENTER.x
+	var cy := VILLAGE_CENTER.y
 
 	# 树的密度大幅下调：48px 的树挤在 240px 见方的区域里必然互相压盖。
 	# 并且加**间距约束** —— 不满足距离就重新投点，而不是硬放下去。
@@ -654,7 +811,7 @@ func _place_props() -> void:
 	# ── 明渠：涝坝往东引水，末端接农田 ──
 	if lv >= 1:
 		for i in range(clampi(lv, 1, 4)):
-			_add_prop("res://tiles/water/canal_h_green.png", 13.5 + i, 15, 2)
+			_add_prop("res://tiles/water/canal_h_green.png", 13.5 + i, 15, Z_GROUND)
 
 
 func _build_shafts() -> void:
@@ -670,7 +827,7 @@ func _build_shafts() -> void:
 		var sp := Sprite2D.new()
 		sp.centered = true
 		sp.position = c
-		sp.z_index = 5
+		sp.z_index = Z_SHAFT
 
 		if i <= sections:
 			sp.texture = _get_tex("res://buildings/well_shaft_01.png")
@@ -701,6 +858,29 @@ func _build_shafts() -> void:
 # 点击竖井
 # ---------------------------------------------------------------------------
 
+## 悬停说明。单独走 _input，不用 _unhandled_input。
+##
+## 理由：HUD 上的面板/按钮会**吃掉鼠标移动事件**。若只在 _unhandled_input 里判断，
+## 光标从地图移到右侧面板上时收不到任何事件，「已经离开地标」这个信号就发不出去，
+## 浮层会一直挂在屏幕上不消失。而 _input 拿得到全部事件。
+##
+## 这里**只读位置、不消费事件**（不调 set_input_as_handled），
+## 所以原有的拖拽与「点竖井」逻辑完全不受影响。
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventMouseMotion):
+		return
+	if _drag_id != "":
+		return                      # 手上正拖着建筑，弹说明会挡视线
+	var hit := _pick_site(get_global_mouse_position())
+	if hit == _hover_id:
+		return                      # 只在变化时发信号，否则鼠标一动就刷一次 HUD
+	_hover_id = hit
+	if hit == "":
+		site_unhovered.emit()
+	else:
+		site_hovered.emit(hit)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# ── 拖拽可移动建筑（仓库/马厩/驿馆）──
 	# 放在最前面：拖拽优先级高于「点竖井」，
@@ -714,6 +894,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		if idx > 0:
 			shaft_pressed.emit(idx)
 			get_viewport().set_input_as_handled()
+			return
+		# 地标点击：交给 play.gd 决定要不要响应（目前只有奏乐台有交互）。
+		#
+		# **刻意不消费这次事件** —— 别处可能还要处理（例如未来的其它点击行为），
+		# 被这里吞掉会变成一个很难查的"某个位置点了没反应"。
+		# 拖拽在那之前已经 return 了，所以点建筑拖动的行为不受影响。
+		var sid := _pick_site(get_global_mouse_position())
+		if sid != "":
+			site_pressed.emit(sid)
 
 
 ## 返回 true 表示这次事件已被拖拽消费掉。

@@ -11,8 +11,11 @@ if (-not (Test-Path $assets)) {
     Write-Error "找不到素材目录：$assets（assets 应与 scripts 同级）"
 }
 
-# 目录联接：tiles / buildings / characters / fx / audio / fonts
-foreach ($d in @("tiles", "buildings", "characters", "fx", "audio", "fonts")) {
+# 目录联接：tiles / buildings / characters / fx / audio / fonts / events
+# events 是 S6 加的事件卡插画（AI 生图，见 scripts/pipeline/make_event_art.py）。
+# 放在 assets/events 而不是 assets/ui 下，是因为它是独立一类素材，
+# 且 ui 那边走的是「逐文件硬链接」而不是 junction，混在一起会更绕。
+foreach ($d in @("tiles", "buildings", "characters", "fx", "audio", "fonts", "events")) {
     $link = Join-Path $proj $d
     $target = Join-Path $assets $d
     if (Test-Path $link) {

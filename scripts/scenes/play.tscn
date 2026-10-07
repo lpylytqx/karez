@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scenes/play.gd" id="1_play"]
 [ext_resource type="Script" path="res://core/game_state.gd" id="2_state"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scenes/villagers.gd" id="7_villagers"]
 [ext_resource type="Script" path="res://scenes/townfolk.gd" id="8_townfolk"]
 [ext_resource type="Script" path="res://scenes/atmosphere.gd" id="9_atmo"]
+[ext_resource type="Script" path="res://scenes/battle.gd" id="10_battle"]
 
 [node name="Play" type="Node2D"]
 script = ExtResource("1_play")
@@ -30,6 +31,9 @@ script = ExtResource("8_townfolk")
 
 [node name="Atmosphere" type="Node2D" parent="."]
 script = ExtResource("9_atmo")
+
+[node name="Battle" type="Node2D" parent="."]
+script = ExtResource("10_battle")
 
 [node name="Player" parent="." instance=ExtResource("5_player")]
 position = Vector2(320, 248)

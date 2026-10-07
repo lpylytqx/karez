@@ -34,6 +34,8 @@ func _ready() -> void:
 	_test_s3_loop()
 	_test_move_site()
 	_test_npc_sprite_follows()
+	_test_building_visibility()
+	_test_facilities()
 	_test_save_roundtrip()
 
 	print("=".repeat(64))
@@ -542,6 +544,137 @@ func _test_npc_sprite_follows() -> void:
 
 	_ok(zhang.position.x < 200.0,
 		"掌柜的精灵被搬到了左半边（%.1f）—— 说明他真的跟着走" % zhang.position.x)
+
+
+## 建造 → 地图显示 的连通性。
+##
+## 这一节防的是一类特别隐蔽的 bug：**两套 id 命名各写各的**。
+##   data/numbers.json 的建筑 id 是 yiguan / majiu / cangku / chufang …
+##   core/sites.gd 的地标键是      inn    / stable / warehouse / kitchen …
+## 实测两者**交集为空** —— 指的是同一样东西，但名字完全不一样。
+## 于是「建造写 state[buildings][majiu]、地图查 state[buildings][stable]」，
+## 永远对不上：玩家花材料建完，地图上什么也不出现。
+##
+## 这类错误不报错、不崩、不影响别的系统，只是**没反应** ——
+## 玩家的原话是「建完以后地图也没有显示呀，建到哪里去了」。
+## 所以必须写成断言，靠人眼是发现不了的。
+func _test_building_visibility() -> void:
+	_section("建造 → 地图显示 的连通性")
+
+	# 翻译表必须覆盖「既能在建造菜单里造、又在地图上有地标」的每个建筑
+	var pairs := [
+		{"site": "inn", "bid": "yiguan"},
+		{"site": "stable", "bid": "majiu"},
+		{"site": "warehouse", "bid": "cangku"},
+		{"site": "kitchen", "bid": "chufang"},
+	]
+	for p in pairs:
+		_eq(Sites.building_id_of(str(p["site"])), str(p["bid"]),
+			"sites.gd 的 %s 翻译成 numbers.json 的 %s" % [str(p["site"]), str(p["bid"])])
+
+	# 反向：sites.gd 里每个 building 类地标都必须能翻译出 id，
+	# 否则那个建筑一旦可建造，就会重演「建了不显示」
+	for id in Sites.PLACES:
+		var pl: Dictionary = Sites.PLACES[id]
+		if str(pl.get("kind", "")) != "building":
+			continue
+		_ok(Sites.building_id_of(str(id)) != "",
+			"可移动建筑 %s 有对应的 numbers.json id" % str(id))
+
+	# 每个**会上地图**的地标都必须有悬停说明文案。
+	# 漏一个的后果是：鼠标停上去浮层是空白的，玩家以为功能坏了。
+	# 判据用 tex != "" ：有贴图的才会被画出来、也才有可能被鼠标指到；
+	# 区域地标（竖井链/农田/树林…）没有贴图，不参与悬停。
+	for id in Sites.PLACES:
+		var pl2: Dictionary = Sites.PLACES[id]
+		if str(pl2.get("tex", "")) == "":
+			continue
+		_ok(str(pl2.get("desc", "")).strip_edges() != "",
+			"地标 %s 有悬停说明文案" % str(id))
+
+	# 端到端：马厩门槛是 sections>=2。把段数压到 0，它本该绝不出现；
+	# 只有在「建成」之后才该出现 —— 这就把两个条件彻底分开了。
+	var sections_bak := int(_game.query("karez.sections"))
+	var had_majiu: bool = _game.state.get("buildings", {}).has("majiu")
+
+	_game.state["karez"]["sections"] = 0
+	_game.state["buildings"].erase("majiu")
+	_eq(_game.place_present("stable"), false, "0 段且未建成时，马厩不出现")
+
+	_game.state["buildings"]["majiu"] = {"level": 1, "condition": 100.0}
+	_eq(_game.place_present("stable"), true,
+		"建成马厩后（坎儿井段数仍为 0），它出现在地图上")
+
+	# 还原现场，别影响后面的用例
+	if not had_majiu:
+		_game.state["buildings"].erase("majiu")
+	_game.state["karez"]["sections"] = sections_bak
+
+
+## 建筑效果接线。
+##
+## 防的是「数据里定义了效果、代码却没人读」这类问题 ——
+## 在本轮之前，numbers.json 的 19 个建筑 effect 字段里**只有 3 个**被读过，
+## 也就是说地图上画着十来个纯装饰的设施，玩家花了材料却什么也不发生。
+##
+## 这类问题不报错、不崩、不影响别的系统，玩起来只是"感觉没什么用"，
+## 所以必须写成断言，靠玩很难系统性发现。
+func _test_facilities() -> void:
+	_section("建筑效果接线")
+
+	var sections_bak := int(_game.query("karez.sections"))
+	var water_bak: Dictionary = _game.state["resources"]["water"].duplicate(true)
+	var buildings_bak: Dictionary = _game.state["buildings"].duplicate(true)
+
+	# 仓库门槛是 always，开局就在场 → 储水上限 ×1.5
+	_ok(_game.has_facility("cangku"), "仓库开局就在场（gate=always）")
+	_eq(int(_game.water_capacity()), 450, "储水上限 = 基础 300 × 仓库 1.5")
+
+	# 人口上限 = min(容量÷30, 田块×3) + 床位。
+	_game.state["karez"]["sections"] = 4
+	var cap_water: int = _game.population_capacity()
+	_ok(cap_water >= 15,
+		"4 段时人口上限 >=15（450÷30），实际 %d" % cap_water)
+
+	# 床位是**加成**：把段数压到 0（水与田都不给容量），看驿馆能不能把上限抬起来。
+	# ⚠ 两处都踩过坑，所以测试必须自己控制环境：
+	#   ① 不能用 4 段测 —— 4 段时驿馆本来就按 gate 出现了，已经算进床位，再加一次看不出差别；
+	#   ② 不能直接读 cap0 —— 前面的 60 天自动模拟会建东西并留在 state 里，
+	#      驿馆留在里面的话，0 段也照样算 12 个床位。所以先把 buildings 清空。
+	_game.state["karez"]["sections"] = 0
+	_game.state["buildings"] = {}
+	var cap0: int = _game.population_capacity()
+	_game.state["buildings"]["yiguan"] = {"level": 1, "condition": 100.0}
+	var cap1: int = _game.population_capacity()
+	_ok(cap1 > cap0,
+		"0 段时建驿馆能把人口上限抬起来：%d → %d（旧公式方向相反，会把它压低）" % [cap0, cap1])
+	_eq(cap1, 12, "0 段 + 驿馆 = 12 个床位")
+
+	# 厨房 → 省粮
+	# ⚠ 显式写 float：_game 在测试里是无类型引用，facility_effect 的返回值被当成
+	#   Variant，用 := 会撞上本项目「禁止从 Variant 推断类型」那条规则、直接解析失败。
+	var fe: float = _game.facility_effect("chufang", "food_efficiency", 1.0)
+	_ok(fe > 1.0, "厨房 food_efficiency 被读到（%.2f）" % fe)
+
+	# 不在场的设施必须返回**中性值**，否则等于「没建也有加成」
+	var zuo: float = _game.facility_effect("zuofang", "craft_efficiency", 1.0)
+	_eq(zuo, 1.0, "作坊不在场时 craft_efficiency 返回中性 1.0")
+
+	# 水位分档 1..4
+	_game.state["resources"]["water"]["current"] = 0.0
+	_eq(_game.reservoir_level(), 1, "水量 0 → 水位 1 档")
+	_game.state["resources"]["water"]["current"] = \
+		float(_game.state["resources"]["water"]["capacity"]) * 0.5
+	_eq(_game.reservoir_level(), 3, "水量半满 → 水位 3 档")
+	_game.state["resources"]["water"]["current"] = \
+		float(_game.state["resources"]["water"]["capacity"])
+	_eq(_game.reservoir_level(), 4, "水量满 → 水位 4 档（不能溢出成 5）")
+
+	# 还原现场
+	_game.state["karez"]["sections"] = sections_bak
+	_game.state["resources"]["water"] = water_bak
+	_game.state["buildings"] = buildings_bak
+	_game.clamp_all()
 
 
 func _test_save_roundtrip() -> void:

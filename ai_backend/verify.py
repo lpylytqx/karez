@@ -279,15 +279,55 @@ section("5. GDScript 基本检查")
 gd_files = sorted((ROOT / "scripts").rglob("*.gd"))
 check(f"找到 {len(gd_files)} 个 .gd 文件", len(gd_files) >= 2)
 
+def strip_gd_noise(text: str) -> str:
+    """去掉 GDScript 的注释与字符串字面量，只留代码。
+
+    为什么必须去：原先直接对全文 `text.count("(") == text.count(")")`，
+    会把**注释和字符串里的括号**也数进去 —— 在灾难代码里写一行
+    `# 1) 冷却` 就让 game_state.gd 整个"括号不配对"。
+
+    那是检查器的假警报，而假警报比没有检查更糟：它会训练人忽略这条结果，
+    真正的括号错位反而被噪声盖住。（GDScript 里 `"` 与 `'` 都是一行内的字符串，
+    不处理三引号多行字符串 —— 项目里没有用到。）
+    """
+    out = []
+    for ln in text.splitlines():
+        res = []
+        i = 0
+        quote = ""
+        while i < len(ln):
+            ch = ln[i]
+            if quote:
+                if ch == "\\":
+                    i += 2
+                    continue
+                if ch == quote:
+                    quote = ""
+                i += 1
+                continue
+            if ch in "\"'":
+                quote = ch
+                i += 1
+                continue
+            if ch == "#":
+                break
+            res.append(ch)
+            i += 1
+        out.append("".join(res))
+    return "\n".join(out)
+
+
 for gd in gd_files:
     text = gd.read_text(encoding="utf-8")
     name = gd.name
     lines = text.splitlines()
+    # 配对检查只看代码：注释里的括号不该参与
+    code = strip_gd_noise(text)
 
     for open_c, close_c in (("(", ")"), ("[", "]"), ("{", "}")):
         check(f"  {name} {open_c}{close_c} 配对",
-              text.count(open_c) == text.count(close_c),
-              f"{text.count(open_c)} vs {text.count(close_c)}")
+              code.count(open_c) == code.count(close_c),
+              f"{code.count(open_c)} vs {code.count(close_c)}")
 
     # 缩进必须一致（Godot 不允许同一文件混用 Tab 与空格缩进）
     tab_indent = sum(1 for ln in lines if ln.startswith("\t"))

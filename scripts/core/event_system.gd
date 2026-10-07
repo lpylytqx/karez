@@ -141,6 +141,18 @@ func eligible_events(category: String = "") -> Array:
 	return out
 
 
+## 按 id 找事件定义。找不到返回 {}。
+##
+## 给外部用（例如 play.gd 判断"玩家选的那个选项该不该进战斗"）——
+## 调用方不该自己去遍历 events 数组，那样等于把数据结构的形状散到各处，
+## 以后事件表换个容器就要满项目找。
+func find_event(event_id: String) -> Dictionary:
+	for e in events:
+		if str(e.get("id", "")) == event_id:
+			return e
+	return {}
+
+
 ## 按 weight 加权抽一条。category 为空表示不限类别。抽不到返回 {}。
 func pick_event(category: String = "") -> Dictionary:
 	var pool := eligible_events(category)

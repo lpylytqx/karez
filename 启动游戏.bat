@@ -57,5 +57,11 @@ echo.
 echo   游戏窗口打开后，本窗口可以关掉。
 echo.
 
+if not exist "%~dp0scripts\\.godot\" (
+    echo [首次运行] 正在导入素材，约需 10-40 秒，请稍候 ...
+    "%~dp0tools\\Godot_v4.7.2-stable_win64_console.exe" --path "%~dp0scripts" --headless --import >nul 2>&1
+    echo            导入完成。
+    echo.
+)
 start "" "%GODOT%" --path "%~dp0scripts"
 exit /b 0

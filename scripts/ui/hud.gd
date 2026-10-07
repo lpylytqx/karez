@@ -16,6 +16,15 @@ signal event_requested
 signal save_requested
 signal load_requested
 signal say_requested(text: String, speaker_id: String)
+## ── 御敌之战 ──
+signal battle_requested                       # 玩家主动点「御敌」
+signal battle_auto_requested                  # 自动布阵
+signal battle_clear_requested                 # 全部收回候补池
+signal battle_fight_requested                 # 开战
+signal battle_close_requested                 # 结束、打扫战场
+signal catch_requested(wild_index: int)        # 派人抓第 N 种野畜（索引对应面板上的按钮）
+signal reservoir_requested                     # 扩建涝坝
+signal muqam_requested(suite_index: int)       # 在奏乐台办第 N 套木卡姆
 
 const FONT_PATH := "res://fonts/ark-12px/ark-pixel-12px-proportional-zh_hans.ttf"
 
@@ -38,12 +47,26 @@ const CHARACTERS := [
 		"hint": "沙漠马匪头目，手下二三十人 —— 谈判和威胁都在这"},
 ]
 
-const BUILDINGS := [
-	{"id": "yiguan", "name": "驿馆"},
-	{"id": "majiu", "name": "马厩"},
-	{"id": "cangku", "name": "仓库"},
-	{"id": "chufang", "name": "厨房"},
-]
+## 可建造的建筑。
+##
+## ⚠ 这里**只列「建成后会在地图上出现」的建筑**。判断标准很简单：
+##    造完之后玩家能不能看见变化？看不见的就不要放进菜单。
+##
+## 仓库(cangku) 与 厨房(chufang) 曾经在这个列表里，已移除，原因是它们是**假建造**：
+##   · 两者的门槛都是 gate=always —— 地图从第 1 天就画着它们了
+##     （见 sites.gd：村子再惨，水和存粮的地方总得有）
+##   · 于是玩家花掉材料「建」的，是一栋早就画在那儿的房子，**画面上没有任何变化**
+##   · 而且 numbers.json 里这两个 id 既没有 income_per_guest_day 也没有
+##     lodging_capacity，建成后除了 +1.5 繁荣度之外没有任何实际效果
+## 玩家反馈「建完以后地图也没有显示呀」正是这么来的。
+## 现在留在菜单里的两个，建成即刻出现在地图上（place_present 会把「已建成」算作出现条件）。
+## 建造菜单每页几行。
+##
+## 原来菜单是一个硬编码的 2 座建筑常量（驿馆、马厩），而数据里有 13 座 ——
+## 仓库/作坊/晾房/围墙/烽燧/居所/毡房区/奏乐台/畜栏**都没出现在菜单里**。
+## 现在改成从 numbers.json 取（game_state.all_buildings()）。
+## 右栏可视高度只有约 168px，13 行放不下，所以分页，每页 5 行。
+const BUILD_PAGE_SIZE := 5
 
 var _game: Node = null
 var _events: Node = null
@@ -111,10 +134,101 @@ var _popup_text: RichTextLabel
 var _popup_choices: VBoxContainer
 var _popup_event: Dictionary = {}
 
+## ── 建筑说明浮层（鼠标停在地标上时出现，离开就消失）──
+##
+## 文案来自 core/sites.gd 的 PLACES[id]["desc"]，不是写在这里 ——
+## 这样「地标是什么、有什么用」和地标的坐标/门槛放在同一处，
+## 加一个地标不会漏掉它的说明。
+var _tip: Panel
+var _tip_label: Label
+## 镜头档位读数（由 play.gd 的 _set_zoom 调 set_zoom_readout 更新）。
+var _zoom_readout: Label
+
+## ── 战斗面板 ──
+## 布阵/交战时出现的横幅。放在顶栏**下方**（y=84），不占地图中央 ——
+## 战场在屏幕中央，面板压上去就看不见敌我了（用户要的正是"看得见对战过程"）。
+var _battle_panel: Panel
+var _battle_title: Label
+var _battle_status: Label
+var _battle_auto: Button
+var _battle_clear: Button
+var _battle_fight: Button
+var _battle_close: Button
+## 浮层宽度（640x360 逻辑空间里的像素）。两行文案在这个宽度下不会折行。
+const TIP_W := 216.0
+const TIP_LINE_H := 15.0
+
+## ── 数值飘字 ──
+##
+## 资源变化时在资源栏上方浮出一个「+42 水」「-18 粮」，向上飘并淡出。
+##
+## 为什么值得做：此前推进一天之后，数字是**悄悄变的** ——
+## 玩家得自己盯着一堆数字、回忆上一刻是多少，才知道今天到底涨了什么跌了什么。
+## 飘字把「这一天发生了什么」直接摆在眼前。
+var _floaters: Array = []       # 每项 = [Label, 已存活秒数]
+var _prev_res: Dictionary = {}  # 上一次的资源快照，用来算差值
+const FLOAT_LIFE := 1.5
+const FLOAT_RISE := 26.0
+## 飘字从资源栏**下方**起浮，而不是压在资源栏上。
+##
+## ⚠ 第一版放在 y=30（正好压在资源行上），实机截图里「水 90/300」被糊成了
+##   「水5242 水 90/300」—— 飘字盖住了它要说明的那个数字，完全读不出来。
+##   顶栏占到 y=78，所以从 104 起、往上飘 26px，正好停在栏边淡出。
+const FLOAT_TOP := 104.0
+
+## ── 事件卡插画 ──
+##
+## 为什么事件插画用 AI 生图，而地形贴图坚决不用：
+##   地形贴图要 16px 网格精确、34 色板精确、形状可控。试过「SDXL 出 1024 大图 →
+##   最近邻降采样强制像素网格」：网格确实出来了，但**细节在贴图尺寸下会塌成一团
+##   颜色涂抹**，而且模型不遵守形制约束（prompt 写明「平顶、不要瓦顶」，它照样画
+##   中式翘檐瓦顶）。过程化生成在这三件事上完胜。
+##
+##   但插画反过来：**不受像素网格约束、要的就是手绘感**，显示尺寸也够大（200x240），
+##   这正是扩散模型擅长的位置（与立绘同理，见 ART_STYLE.md：像素风只约束地图与 UI）。
+##   生成脚本 scripts/pipeline/make_event_art.py（本地 ComfyUI + SDXL 1.0）。
+const EVENT_ART_DIR := "res://events/"
+const EVENT_ART_FALLBACK := "manage"
+## 事件分类 -> 插画名。分类来自 events.v1.json 的 category 字段。
+const EVENT_ART_BY_CATEGORY := {
+	"manage": "manage", "explore": "explore",
+	"diplomacy": "diplomacy", "crisis": "crisis",
+}
+## 插画区尺寸。改这里要同步改 make_event_art.py 的 CARD_W / CARD_H。
+##
+## ⚠ HUD 的坐标空间是 **640x360 逻辑像素**（再 2 倍拉伸到 1280x720 窗口），
+##    不是 1280x720。第一版按 760 宽排版，直接超出屏幕 180px、文字被切在右缘 ——
+##    布局数字必须按 640x360 算。用 scripts/scenes/diag_layout.tscn 可以量实际矩形。
+const EVENT_ART_W := 150
+const EVENT_ART_H := 200
+
+var _popup_art: TextureRect
+var _art_cache: Dictionary = {}
+
 var _build_menu: Panel
+## 建造菜单的分页状态与控件（列表由数据驱动，见 BUILD_PAGE_SIZE）
+var _build_btns: Array = []
+var _build_page := 0
+var _build_hint: Label
+var _build_prev: Button
+var _build_next: Button
 
 ## 分工面板（S3）。每行是一个岗位：标签 + 「−」「＋」两个按钮。
 var _job_panel: Panel
+## ── 畜牧页 ──
+var _animal_panel: Panel
+var _animal_title: Label
+var _animal_body: Label
+var _wild_buttons: Array = []
+var _reservoir_btn: Button
+## 由 play.gd 注入的"取畜牧信息"回调。HUD 不直接碰 GameState。
+var _animal_refresh: Callable = Callable()
+## ── 木卡姆页 ──
+var _music_panel: Panel
+var _music_title: Label
+var _music_body: Label
+var _suite_buttons: Array = []
+var _music_refresh: Callable = Callable()
 var _job_rows: Dictionary = {}
 var _job_free: Label
 ## 上一条日志文本，用于抑制连续重复（连点失败按钮时不刷屏）
@@ -128,6 +242,8 @@ func _ready() -> void:
 	_build_top()
 	_build_right()
 	_build_bottom()
+	_build_tip()        # 浮层要先于弹窗建，这样事件弹窗压在它上面
+	_build_battle_panel()
 	_build_popup()
 
 
@@ -221,6 +337,16 @@ func _build_top() -> void:
 
 	_res = _make_label(p, Vector2(4, 27), Vector2(632, 23), "")
 	_hint = _make_label(p, Vector2(4, 53), Vector2(632, 23), "")
+
+	# ── 镜头档位读数 ──
+	# 放在顶栏**下方**（顶栏常驻占到 y=78），而不是硬塞进顶栏 ——
+	# 顶栏三行都已经很满，塞进去会把「分工概览」和「该干什么」挤掉。
+	# 位置在右上角：那一带是空白沙漠，不会挡住聚落。
+	_zoom_readout = _make_label(p, Vector2(356, 82), Vector2(276, 16), "")
+	_zoom_readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_zoom_readout.add_theme_font_size_override("font_size", 11)
+	# 压暗一点：它是常驻提示，不该跟正文抢注意力
+	_zoom_readout.modulate = Color(0.88, 0.82, 0.72, 0.66)
 	_hint.modulate = Color(1.0, 0.9, 0.55)
 
 
@@ -230,7 +356,7 @@ func _build_right() -> void:
 	#
 	# 宽度给到 208：分工/建造这些页要在一行里放「名称 + − + ＋」，
 	# 104 宽的窄栏放不下 —— 第一版就是因此把面板浮在地图正中间，挡住了半张图。
-	_right = _make_panel(Rect2(432, 82, 208, 206), Color(0.13, 0.10, 0.07, 0.93))
+	_right = _make_panel(Rect2(432, 82, 208, 232), Color(0.13, 0.10, 0.07, 0.93))
 	_right.visible = false
 	var p: Panel = _right
 
@@ -259,8 +385,220 @@ func _build_right() -> void:
 	var bload := _make_button(p, Rect2(106, 180, 98, 24), "读档")
 	bload.pressed.connect(func(): load_requested.emit())
 
+	# 御敌：手动开一场（低治安时每过一天也会自己触发，见 play.gd）
+	# ⚠ 这一行原本是「御敌」独占 200 宽。右栏已经排到 y=230（面板高 232），
+	#   再加按钮就溢出到屏幕外了 —— 所以把这一行拆成两个 98 宽的按钮，
+	#   腾出「畜牧」入口而不加高面板。
+	var bbat := _make_button(p, Rect2(4, 206, 98, 24), "御敌")
+	bbat.pressed.connect(func(): battle_requested.emit())
+	var bherd := _make_button(p, Rect2(106, 206, 98, 24), "畜牧")
+	bherd.pressed.connect(func(): _toggle_animal_panel())
+
 	_build_panel()
 	_build_job_panel()
+	_build_animal_panel()
+	_build_music_panel()
+
+
+## 木卡姆页 —— 覆盖在右侧功能栏上（与分工/建造/畜牧同一个模式）。
+##
+## 入口是**点地图上的奏乐台**（map_view 的 site_pressed 信号），
+## 而不是右栏再加一个按钮：右栏已经排到 230/232，塞不下了；
+## 而且"点那个台子办一场"本来就是玩家会先试的动作。
+##
+## 布局同样压进可视区（右栏实际只有约 168px 可用）：
+##   标题 2 / 说明 18 / 六套曲目 2 列 × 3 行 56~126 / 返回 132
+func _build_music_panel() -> void:
+	_music_panel = Panel.new()
+	_music_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_music_panel.position = Vector2.ZERO
+	_music_panel.size = _right.size
+	_music_panel.add_theme_stylebox_override("panel",
+		_panel_style(Color(0.15, 0.11, 0.13, 0.99)))
+	_music_panel.visible = false
+	_right.add_child(_music_panel)
+
+	var p: Panel = _music_panel
+	_music_title = _make_label(p, Vector2(6, 2), Vector2(196, 16), "木卡姆")
+	_music_title.modulate = Color(0.98, 0.86, 0.72)
+
+	_music_body = _make_label(p, Vector2(6, 18), Vector2(196, 34), "")
+	_music_body.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_music_body.modulate = Color(0.88, 0.82, 0.72)
+
+	_suite_buttons.clear()
+	for i in range(6):
+		var col := i % 2
+		var row := i / 2
+		var b := _make_button(p, Rect2(6 + col * 100, 56 + row * 24, 96, 22), "—")
+		b.visible = false
+		var idx := i
+		b.pressed.connect(func() -> void: muqam_requested.emit(int(idx)))
+		_suite_buttons.append(b)
+
+	var back := _make_button(p, Rect2(6, 132, 196, 22), "返回")
+	back.pressed.connect(func(): _toggle_music_panel())
+
+
+func _toggle_music_panel() -> void:
+	if _music_panel == null:
+		return
+	var show := not _music_panel.visible
+	_close_pages()
+	if _right != null:
+		_right.visible = true
+	_music_panel.visible = show
+	if show:
+		refresh_music_panel()
+
+
+## 刷新木卡姆页。info 由 play.gd 从 GameState.music_info() 取来后传入 ——
+## 与畜牧页同一条分工：界面只渲染，逻辑在 core。
+func refresh_music_panel(info := {}) -> void:
+	if _music_panel == null or not _music_panel.visible:
+		return
+	var d: Dictionary = info
+	if d.is_empty() and _music_refresh.is_valid():
+		d = _music_refresh.call()
+	if d.is_empty():
+		return
+	var suites: Array = d.get("suites", [])
+	_music_title.text = "木卡姆　已办 %d 场" % int(d.get("played", 0))
+	# ⚠ GDScript **没有** Python 那种切片语法（`s[:52]` 会直接解析失败，
+	#   而且是整个文件挂掉）。要截断只能用 substr()。
+	if bool(d.get("ok", false)):
+		_music_body.text = "%s\n（点一套曲子开场）" % str(d.get("note", "")).substr(0, 40)
+	else:
+		_music_body.text = "办不了：%s" % str(d.get("reason", "")).substr(0, 44)
+	for i in range(_suite_buttons.size()):
+		var b: Button = _suite_buttons[i]
+		if i >= suites.size():
+			b.visible = false
+			continue
+		var s: Dictionary = suites[i]
+		b.visible = true
+		b.text = "%s %s" % [str(s.get("display", "")), str(s.get("mood", ""))]
+		b.tooltip_text = str(s.get("text", ""))
+		b.disabled = not bool(d.get("ok", false))
+
+
+func set_music_source(cb: Callable) -> void:
+	_music_refresh = cb
+	refresh_music_panel()
+
+
+## 畜牧页 —— 覆盖在右侧功能栏上（与分工页/建造页同一个模式）。
+##
+## 它要回答三个问题，而且是**按玩家的决策顺序**排的：
+##   1. 我现在有什么（存栏、每天吃多少草料、每天产出什么）
+##   2. 能干什么（派人抓野畜，按难度升序列出；扩建涝坝）
+##   3. 为什么干不了（栏位满 / 闲人不够 / 行动点不够 / 材料不够，直接写在按钮上）
+## 第 3 条是这个面板存在的主要理由：这个游戏里"点了没反应"是最坏的体验。
+##
+## ⚠ 布局必须压进**可视区**：右栏是 232 高（82..314），但底部日志栏从 ~250 起
+##   把它盖住了，实际只有约 168px 可用。第一版按 232 排，结果第 4 个野畜按钮
+##   被切掉、「扩建涝坝/返回」完全看不见 —— 截图核对才发现的。
+##   所以野畜做成 2×2 网格，总高收到 158。
+func _build_animal_panel() -> void:
+	_animal_panel = Panel.new()
+	_animal_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_animal_panel.position = Vector2.ZERO
+	_animal_panel.size = _right.size
+	_animal_panel.add_theme_stylebox_override("panel",
+		_panel_style(Color(0.14, 0.13, 0.09, 0.99)))
+	_animal_panel.visible = false
+	_right.add_child(_animal_panel)
+
+	var p: Panel = _animal_panel
+	_animal_title = _make_label(p, Vector2(6, 2), Vector2(196, 16), "畜牧")
+	_animal_title.modulate = Color(0.98, 0.88, 0.62)
+
+	_animal_body = _make_label(p, Vector2(6, 18), Vector2(196, 34), "")
+	# ⚠ 关掉自动换行：开了之后正文会自己撑成三行、压到下面的按钮上，
+	#   而且 Label 高度是固定的，第三行直接被裁掉（截图里看到的正文与按钮重叠）。
+	#   改成自己控制的两行，行数就永远是 2 —— 布局才是可预测的。
+	_animal_body.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_animal_body.modulate = Color(0.88, 0.84, 0.70)
+
+	# 抓野畜：2×2 网格，按难度升序（野畜表就 4 种）
+	_wild_buttons.clear()
+	for i in range(4):
+		var col := i % 2
+		var row := i / 2
+		var b := _make_button(p, Rect2(6 + col * 100, 56 + row * 24, 96, 22), "—")
+		b.visible = false
+		var wid := i
+		b.pressed.connect(func() -> void: catch_requested.emit(int(wid)))
+		_wild_buttons.append(b)
+
+	_reservoir_btn = _make_button(p, Rect2(6, 106, 196, 22), "扩建涝坝")
+	_reservoir_btn.pressed.connect(func(): reservoir_requested.emit())
+
+	var back := _make_button(p, Rect2(6, 132, 96, 22), "返回")
+	back.pressed.connect(func(): _toggle_animal_panel())
+	var refresh := _make_button(p, Rect2(106, 132, 96, 22), "刷新")
+	refresh.pressed.connect(func(): refresh_animal_panel())
+
+
+func _toggle_animal_panel() -> void:
+	if _animal_panel == null:
+		return
+	var show := not _animal_panel.visible
+	_close_pages()
+	if _right != null:
+		_right.visible = true
+	_animal_panel.visible = show
+	if show:
+		refresh_animal_panel()
+
+
+## 刷新畜牧页。info 由 play.gd 从 GameState.catch_info() 取来后传入 ——
+## HUD 不直接碰 GameState，保持"界面只渲染、逻辑在 core"这条分工。
+func refresh_animal_panel(info := {}) -> void:
+	if _animal_panel == null or not _animal_panel.visible:
+		return
+	var d: Dictionary = info
+	if d.is_empty() and _animal_refresh != null:
+		d = _animal_refresh.call()
+	if d.is_empty():
+		return
+	var live: String = str(d.get("livestock", "空栏"))
+	var feed: float = float(d.get("feed", 0.0))
+	var cap: int = int(d.get("capacity", 0))
+	var herd: int = int(d.get("herders", 0))
+	_animal_title.text = "畜牧　%s" % live
+	var prod: Dictionary = d.get("products", {})
+	var plist: Array = []
+	for k in prod:
+		var amt := float(prod[k])
+		if amt > 0.01:
+			# 名字由 core 侧译好（play.gd 传 products_cn），HUD 不再自己维护一份对照表 ——
+			# 两处各写一套正是这类界面反复出错的原因（第一版这里显示的是 wool/milk/egg）
+			plist.append("%s%.1f" % [str(d.get("products_cn", {}).get(k, "")), amt])
+	_animal_body.text = "上限 %d　牧人 %d　草料 %.1f/天\n日收 %s" % [
+		cap, herd, feed, ("无（先派人抓野畜）" if plist.is_empty() else " ".join(plist))]
+
+	var opts: Array = d.get("options", [])
+	for i in range(_wild_buttons.size()):
+		var b: Button = _wild_buttons[i]
+		if i >= opts.size():
+			b.visible = false
+			continue
+		var o: Dictionary = opts[i]
+		b.visible = true
+		# 96px 宽：文案压到 8 个字以内，难度只留数字
+		b.text = "抓%s %s" % [str(o.get("display", "")), str(o.get("hint", ""))]
+		b.disabled = not bool(o.get("ok", false))
+	# 扩建涝坝
+	if _reservoir_btn != null:
+		_reservoir_btn.text = str(d.get("reservoir_text", "扩建涝坝"))
+		_reservoir_btn.disabled = not bool(d.get("reservoir_ok", false))
+
+
+## 让 play.gd 注入"怎么取畜牧信息"，避免 HUD 直接依赖 GameState。
+func set_animal_source(cb: Callable) -> void:
+	_animal_refresh = cb
+	refresh_animal_panel()
 
 
 ## 分工页 —— S3 的核心界面。它铺在右侧功能栏的位置上，**不浮在地图中间**：
@@ -308,6 +646,10 @@ func _close_pages() -> void:
 		_job_panel.visible = false
 	if _build_menu != null:
 		_build_menu.visible = false
+	if _animal_panel != null:
+		_animal_panel.visible = false
+	if _music_panel != null:
+		_music_panel.visible = false
 
 
 ## 供场景在开局时自动弹出 —— 用户实机反馈「不知道怎么派人」。
@@ -364,27 +706,78 @@ func _build_panel() -> void:
 	_build_menu.visible = false
 	_right.add_child(_build_menu)
 
-	_make_label(_build_menu, Vector2(6, 2), Vector2(196, 23), "── 选择建筑 ──")
+	var btitle := _make_label(_build_menu, Vector2(6, 2), Vector2(196, 15), "── 建造 ──")
+	btitle.modulate = Color(0.98, 0.86, 0.72)
+	_build_hint = _make_label(_build_menu, Vector2(6, 16), Vector2(196, 13), "")
+	_build_hint.modulate = Color(0.82, 0.76, 0.66)
+	_build_hint.add_theme_font_size_override("font_size", 11)
 
-	var y := 28.0
-	for b in BUILDINGS:
-		var info: Dictionary = _game.build_info(str(b["id"])) if _game != null else {}
-		var cost := ""
-		if not info.is_empty():
-			var parts: Array = []
-			for k in info.get("materials", {}):
-				parts.append("%s%d" % [_mat_cn(str(k)), int(info["materials"][k])])
-			cost = " " + " ".join(parts)
-		var btn := _make_button(_build_menu, Rect2(4, y, 200, 24),
-			"%s%s" % [str(b["name"]), cost])
-		btn.pressed.connect(func():
-			build_requested.emit(str(b["id"]))
-			_build_menu.visible = false
-		)
-		y += 26.0
+	_build_btns.clear()
+	for i in range(BUILD_PAGE_SIZE):
+		var btn := _make_button(_build_menu, Rect2(4, 30 + i * 22, 200, 21), "—")
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var slot := i
+		btn.pressed.connect(func() -> void: _on_build_slot(slot))
+		_build_btns.append(btn)
 
-	var back := _make_button(_build_menu, Rect2(4, y + 2, 60, 24), "返回")
+	_build_prev = _make_button(_build_menu, Rect2(4, 143, 62, 21), "上一页")
+	_build_prev.pressed.connect(func() -> void:
+		_build_page -= 1
+		_refresh_build_menu())
+	_build_next = _make_button(_build_menu, Rect2(70, 143, 62, 21), "下一页")
+	_build_next.pressed.connect(func() -> void:
+		_build_page += 1
+		_refresh_build_menu())
+	var back := _make_button(_build_menu, Rect2(136, 143, 68, 21), "返回")
 	back.pressed.connect(_close_pages)
+
+
+## 按数据刷新建造菜单当前页。
+##
+## 判据只从 `game_state.build_info()` 取 —— 能不能建、缺什么、为什么不能，
+## 全在 core 里算好了，HUD 只负责显示。这样"该不该能建"只有一处定义。
+func _refresh_build_menu() -> void:
+	if _build_menu == null or _game == null:
+		return
+	var all: Array = _game.all_buildings()
+	_build_page = clampi(_build_page, 0, maxi(0, int(ceil(float(all.size()) / BUILD_PAGE_SIZE)) - 1))
+	var start := _build_page * BUILD_PAGE_SIZE
+	for i in range(_build_btns.size()):
+		var btn: Button = _build_btns[i]
+		var idx := start + i
+		if idx >= all.size():
+			btn.visible = false
+			continue
+		var id := str(all[idx].get("id", ""))
+		var info: Dictionary = _game.build_info(id)
+		btn.visible = true
+		var parts: Array = []
+		for k in info.get("materials", {}):
+			parts.append("%s%d" % [_mat_cn(str(k)), int(info["materials"][k])])
+		var cost := ("　" + " ".join(parts)) if not parts.is_empty() else ""
+		var ok := bool(info.get("ok", false))
+		btn.text = "  %s%s" % [str(info.get("display", id)), cost]
+		btn.disabled = not ok
+		btn.tooltip_text = ("建造 %s" % str(info.get("display", id))) if ok \
+			else str(info.get("reason", ""))
+	var pages := maxi(1, int(ceil(float(all.size()) / BUILD_PAGE_SIZE)))
+	_build_hint.text = "共 %d 座　第 %d/%d 页（灰＝现在建不了，鼠标停上看原因）" \
+		% [all.size(), _build_page + 1, pages]
+	if _build_prev != null:
+		_build_prev.disabled = _build_page <= 0
+	if _build_next != null:
+		_build_next.disabled = _build_page >= pages - 1
+
+
+func _on_build_slot(slot: int) -> void:
+	if _game == null:
+		return
+	var all: Array = _game.all_buildings()
+	var idx := _build_page * BUILD_PAGE_SIZE + slot
+	if idx < 0 or idx >= all.size():
+		return
+	build_requested.emit(str(all[idx].get("id", "")))
+	_build_menu.visible = false
 
 
 func _on_build_pressed() -> void:
@@ -392,6 +785,7 @@ func _on_build_pressed() -> void:
 		_right.visible = true
 	if _build_menu != null:
 		_build_menu.visible = true
+		_refresh_build_menu()
 	if _job_panel != null:
 		_job_panel.visible = false
 
@@ -554,6 +948,140 @@ func speaker_name() -> String:
 # 事件弹窗
 # ---------------------------------------------------------------------------
 
+## ── 地标说明浮层 ──
+##
+## 平时隐藏，鼠标停到地图上的地标才出现，离开立刻消失（由 play.gd
+## 把 map_view 的 site_hovered / site_unhovered 接到 show_site_tip / hide_site_tip）。
+##
+## 为什么浮层放在 HUD 而不是地图里：浮层属于界面 —— 字体、配色、边距都应该跟
+## 顶栏/面板一致；地图只负责回答「光标现在在哪个地标上」。
+func _build_tip() -> void:
+	_tip = Panel.new()
+	_tip.visible = false
+	# 绝不能吃掉鼠标事件，否则浮层下面那格就点不到了
+	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip.add_theme_stylebox_override("panel", _panel_style(Color(0.13, 0.10, 0.07, 0.97)))
+	add_child(_tip)
+
+	_tip_label = Label.new()
+	_tip_label.position = Vector2(8, 5)
+	_tip_label.add_theme_font_size_override("font_size", 12)
+	_tip_label.modulate = Color(0.94, 0.89, 0.81)
+	# 文案里自己带换行（sites.gd 的 desc 就是两句：是什么 / 有什么用），
+	# 所以不用 autowrap —— 让换行位置由文案决定，比按宽度自动折行可控。
+	_tip_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_tip.add_child(_tip_label)
+
+
+## 显示某个地标的说明。site_id 不存在或没写 desc 就什么都不做（保持隐藏）。
+func show_site_tip(site_id: String) -> void:
+	if _tip == null or _tip_label == null:
+		return
+	var p: Dictionary = Sites.PLACES.get(site_id, {})
+	var text := str(p.get("desc", ""))
+	if text.strip_edges() == "":
+		hide_site_tip()
+		return
+
+	_tip_label.text = text
+	# 高度按行数算，而不是问 Label 要最小尺寸 ——
+	# autowrap 关掉时 Label 的最小高度不含换行，量不准。
+	var lines := text.split("\n").size()
+	var h := TIP_LINE_H * float(lines) + 12.0
+	_tip.size = Vector2(TIP_W, h)
+	_tip_label.size = Vector2(TIP_W - 16.0, h - 10.0)
+
+	# 贴着光标右下角，并夹在屏幕内（HUD 坐标空间是 640x360，不是窗口的 1280x720）
+	var m := get_local_mouse_position()
+	var sz := size
+	var pos := m + Vector2(14, 14)
+	pos.x = clampf(pos.x, 4.0, maxf(4.0, sz.x - TIP_W - 4.0))
+	pos.y = clampf(pos.y, 4.0, maxf(4.0, sz.y - h - 4.0))
+	_tip.position = pos
+	_tip.visible = true
+
+
+func hide_site_tip() -> void:
+	if _tip != null:
+		_tip.visible = false
+
+
+## 更新镜头读数。由 play.gd 在缩放/平移/回跟时调用。
+##
+## ⚠ 要把**跟随状态**一起显示：原来只显示倍数，玩家看到"×1.00"根本不知道
+##   自己是不是还跟在主角身上 —— 用户实机就是这个困惑（「我也跟不了啊」）。
+func set_zoom_readout(z: float, following := true) -> void:
+	if _zoom_readout == null:
+		return
+	# ⚠ 第一版这里写的是「镜头 ×%.2f　滚轮缩放 · 中键平移 · F 跟随」，
+	#   整串约 250px，而标签只有 160px 宽 —— 右对齐时两端都被裁掉，
+	#   实机截图里只看得见中间一截。现在标签放宽到 276px，文案也去掉冗余前缀。
+	#
+	# 平移方式改成「拖动」（不再写"中键"）：中键在笔记本触控板上根本不存在，
+	# 左边/中键拖动都支持之后，写"中键"反而把能用的操作说窄了。
+	var state := "跟随中" if following else "已脱离 · 按 F 回主角"
+	_zoom_readout.text = "×%.2f　%s　滚轮缩放 · 拖动平移" % [z, state]
+
+
+## ── 战斗横幅 ──
+##
+## 位置刻意放在**顶栏下方**（y=84）：战场在屏幕正中，面板压上去就看不见敌我了 ——
+## 而"直观看到对战过程"正是这个功能的目的。
+func _build_battle_panel() -> void:
+	_battle_panel = Panel.new()
+	_battle_panel.position = Vector2(110, 84)
+	_battle_panel.size = Vector2(420, 62)
+	_battle_panel.visible = false
+	# 面板上有按钮，必须能接收点击（不能像说明浮层那样 MOUSE_FILTER_IGNORE）
+	_battle_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_battle_panel.add_theme_stylebox_override("panel",
+		_panel_style(Color(0.16, 0.12, 0.09, 0.96)))
+	add_child(_battle_panel)
+
+	_battle_title = _make_label(_battle_panel, Vector2(8, 2), Vector2(404, 20), "")
+	_battle_title.add_theme_font_size_override("font_size", 13)
+	_battle_title.modulate = Color(0.98, 0.90, 0.74)
+	_battle_status = _make_label(_battle_panel, Vector2(8, 21), Vector2(404, 17), "")
+	_battle_status.add_theme_font_size_override("font_size", 11)
+	_battle_status.modulate = Color(0.88, 0.83, 0.72)
+
+	_battle_auto = _make_button(_battle_panel, Rect2(8, 38, 96, 22), "自动布阵")
+	_battle_auto.pressed.connect(func(): battle_auto_requested.emit())
+	_battle_clear = _make_button(_battle_panel, Rect2(108, 38, 96, 22), "全部收回")
+	_battle_clear.pressed.connect(func(): battle_clear_requested.emit())
+	_battle_fight = _make_button(_battle_panel, Rect2(208, 38, 96, 22), "开战")
+	_battle_fight.pressed.connect(func(): battle_fight_requested.emit())
+	_battle_close = _make_button(_battle_panel, Rect2(308, 38, 96, 22), "结束")
+	_battle_close.pressed.connect(func(): battle_close_requested.emit())
+
+
+## 显示战斗横幅。deploying=true 时给「自动布阵 / 全部收回 / 开战」，false 时只给「结束」。
+func show_battle_panel(title: String, status: String, deploying: bool) -> void:
+	if _battle_panel == null:
+		return
+	_battle_title.text = title
+	_battle_status.text = status
+	if _battle_auto != null:
+		_battle_auto.visible = deploying
+	if _battle_clear != null:
+		_battle_clear.visible = deploying
+	if _battle_fight != null:
+		_battle_fight.visible = deploying
+	if _battle_close != null:
+		_battle_close.visible = not deploying
+	_battle_panel.visible = true
+
+
+func update_battle_panel(status: String) -> void:
+	if _battle_status != null:
+		_battle_status.text = status
+
+
+func hide_battle_panel() -> void:
+	if _battle_panel != null:
+		_battle_panel.visible = false
+
+
 func _build_popup() -> void:
 	_popup = Control.new()
 	_popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -566,28 +1094,109 @@ func _build_popup() -> void:
 	dim.color = Color(0, 0, 0, 0.55)
 	_popup.add_child(dim)
 
+	# 卡片加宽为插画腾出左侧一列。文字区整体右移，宽度收窄 —— 保证不压到字。
+	# 坐标全部按 640x360 逻辑空间算（见 EVENT_ART_W 的注释）。
 	var card := Panel.new()
-	card.position = Vector2(60, 40)
-	card.size = Vector2(520, 280)
+	card.position = Vector2(20, 30)
+	card.size = Vector2(600, 300)
 	card.add_theme_stylebox_override("panel", _panel_style(Color(0.16, 0.12, 0.09, 0.98)))
 	_popup.add_child(card)
 
-	_popup_title = _make_label(card, Vector2(8, 6), Vector2(504, 16), "")
+	# ── 左侧插画 ──
+	_popup_art = TextureRect.new()
+	_popup_art.position = Vector2(10, 26)
+	_popup_art.size = Vector2(EVENT_ART_W, EVENT_ART_H)
+	_popup_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_popup_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_popup_art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	card.add_child(_popup_art)
+
+	# 插画右侧一条 1px 竖线，把图和文分开（不然接缝糊在一起看不出是两栏）
+	var rule := ColorRect.new()
+	rule.position = Vector2(10 + EVENT_ART_W + 7, 26)
+	rule.size = Vector2(1, EVENT_ART_H)
+	rule.color = Color(0.74, 0.57, 0.32, 0.35)
+	card.add_child(rule)
+
+	var text_x := 10 + EVENT_ART_W + 17          # 177
+	var text_w := 600 - text_x - 12              # 411
+
+	_popup_title = _make_label(card, Vector2(text_x, 8), Vector2(text_w, 16), "")
 	_popup_title.add_theme_font_size_override("font_size", 12)
 	_popup_title.modulate = Color(1.0, 0.86, 0.45)
 
 	_popup_text = RichTextLabel.new()
-	_popup_text.position = Vector2(8, 24)
-	_popup_text.size = Vector2(504, 120)
+	_popup_text.position = Vector2(text_x, 28)
+	_popup_text.size = Vector2(text_w, 148)
 	_popup_text.bbcode_enabled = true
 	_popup_text.add_theme_font_size_override("normal_font_size", 12)
 	card.add_child(_popup_text)
 
 	_popup_choices = VBoxContainer.new()
-	_popup_choices.position = Vector2(8, 148)
-	_popup_choices.size = Vector2(504, 124)
+	_popup_choices.position = Vector2(text_x, 182)
+	_popup_choices.size = Vector2(text_w, 110)
 	_popup_choices.add_theme_constant_override("separation", 3)
 	card.add_child(_popup_choices)
+
+
+## 这一条事件该配哪张插画。
+##
+## 优先级：**季节 > 时段 > 事件分类**。
+## 冬天排在最前是因为雪景与其余三季的差别最大，认季节比认分类更有辨识度；
+## 夜里排第二，篝火那张的氛围与白天完全不同。
+func _event_art_name(event: Dictionary) -> String:
+	var season := ""
+	var phase := ""
+	if _game != null:
+		season = str(_game.query("season"))
+		phase = str(_game.query("phase"))
+	if season == "winter":
+		return "winter"
+	if phase == "night":
+		return "night"
+	return str(EVENT_ART_BY_CATEGORY.get(str(event.get("category", "")), EVENT_ART_FALLBACK))
+
+
+## 取插画贴图，带缓存（事件卡会反复开关，每次 load 没必要）。
+## 找不到就返回 null —— 卡片照常显示，只是左侧留白，绝不能因为缺张图就崩。
+func _event_art_tex(name: String) -> Texture2D:
+	if _art_cache.has(name):
+		return _art_cache[name]
+	var t = load(EVENT_ART_DIR + name + ".png")
+	if t == null:
+		push_warning("事件插画缺失：%s%s.png（卡片会留白，不影响游玩）" % [EVENT_ART_DIR, name])
+		return null
+	_art_cache[name] = t
+	return t
+
+
+
+## 显示一张「通告」卡：外形与事件卡一致，但没有选项、只有一个「知道了」。
+##
+## 为什么需要它：灾难发生时**必须有画面** —— 只写日志的话，玩家很容易整场都
+## 没注意到自己遭了灾，只看到顶栏数字莫名变了。
+## 但灾难不是「事件库」里的一条（它由 disaster 系统掷骰产生），
+## 送进 `_events.resolve()` 会因为找不到定义而结算失败 ——
+## 所以走这条**不带结算**的通告路径。
+func show_notice(title: String, text: String, art_name: String) -> void:
+	if _popup == null:
+		return
+	_popup_event = {}
+	_popup_title.text = title
+	_popup_text.text = text
+	if _popup_art != null:
+		var tex := _event_art_tex(art_name)
+		_popup_art.texture = tex
+		_popup_art.visible = tex != null
+	for c in _popup_choices.get_children():
+		c.queue_free()
+	var b := Button.new()
+	b.text = "  知道了"
+	b.add_theme_font_size_override("font_size", 12)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.pressed.connect(func() -> void: _popup.visible = false)
+	_popup_choices.add_child(b)
+	_popup.visible = true
 
 
 func show_event(event: Dictionary) -> void:
@@ -597,6 +1206,11 @@ func show_event(event: Dictionary) -> void:
 	_popup_event = event
 	_popup_title.text = "【%s】%s" % [str(event.get("category", "")), str(event.get("title", ""))]
 	_popup_text.text = str(event.get("text", ""))
+	# 左侧插画：按 季节/时段/分类 取图。取不到就让 _popup_art 留空，不影响卡片其余部分。
+	if _popup_art != null:
+		var tex := _event_art_tex(_event_art_name(event))
+		_popup_art.texture = tex
+		_popup_art.visible = tex != null
 
 	for c in _popup_choices.get_children():
 		c.queue_free()
@@ -763,6 +1377,71 @@ func refresh() -> void:
 		_refresh_jobs()
 
 	_refresh_dig()
+	_update_floaters(w, food, float(_game.query("resources.silver")))
+
+
+## 比较资源快照，给变化的部分生成飘字。
+func _update_floaters(water: float, food: float, silver: float) -> void:
+	if _prev_res.is_empty():
+		# 第一帧只记基线、不飘字，否则开局会凭空冒出几个大数字
+		_prev_res = {"water": water, "food": food, "silver": silver}
+		return
+	# 量级差得远的不要混在一行显示，所以按资源分别给一个起点 x
+	var entries := [
+		["water", water, "水", Color(0.56, 0.78, 0.84), 8.0],
+		["food", food, "粮", Color(0.88, 0.64, 0.24), 74.0],
+		["silver", silver, "银", Color(0.94, 0.89, 0.81), 140.0],
+	]
+	for e in entries:
+		var key := str(e[0])
+		var now := float(e[1])
+		var was := float(_prev_res.get(key, now))
+		var d := now - was
+		_prev_res[key] = now
+		# 变化不足 1 的不飘：否则每天都会冒出「+0 银」这种东西，很快就满屏噪音
+		if absf(d) < 0.5:
+			continue
+		var txt := "%s%d %s" % ["+" if d > 0.0 else "", int(round(d)), str(e[2])]
+		# 减少用赭红（色板的火焰山系），增加用该资源自己的颜色
+		var col: Color = e[3] if d > 0.0 else Color(0.79, 0.44, 0.29)
+		_spawn_float(txt, Vector2(float(e[4]), FLOAT_TOP), col)
+
+
+func _spawn_float(text: String, at: Vector2, col: Color) -> void:
+	var lb := Label.new()
+	lb.text = text
+	lb.position = at
+	lb.add_theme_font_size_override("font_size", 12)
+	# 描边：飘字是浮在**地形上**的，沙地是浅色、草地是中间调，
+	# 没有深色描边的话米白/金色数字会在沙地上糊掉。加了描边就不挑底色。
+	lb.add_theme_constant_override("outline_size", 5)
+	lb.add_theme_color_override("font_outline_color", Color(0.12, 0.09, 0.07, 0.9))
+	lb.modulate = col
+	# 绝不能吃鼠标事件 —— 它就浮在地图上方，挡住点击就麻烦了
+	lb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lb)
+	_floaters.append([lb, 0.0])
+
+
+func _process(delta: float) -> void:
+	if _floaters.is_empty():
+		return
+	var keep: Array = []
+	for f in _floaters:
+		var lb: Label = f[0]
+		if lb == null or not is_instance_valid(lb):
+			continue
+		var age := float(f[1]) + delta
+		if age >= FLOAT_LIFE:
+			lb.queue_free()
+			continue
+		var t := age / FLOAT_LIFE
+		lb.position.y -= FLOAT_RISE * delta / FLOAT_LIFE
+		var c: Color = lb.modulate
+		c.a = 1.0 - t * t        # 后段淡得快一点，收尾干净
+		lb.modulate = c
+		keep.append([lb, age])
+	_floaters = keep
 
 
 func _refresh_dig() -> void:
